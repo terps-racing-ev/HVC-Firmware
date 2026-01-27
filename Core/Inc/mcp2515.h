@@ -29,7 +29,7 @@ typedef enum {
 } CAN_CLKOUT;
 
 typedef enum {
-	MCP_20MHZ, MCP_16MHZ, MCP_8MHZ
+	MCP_20MHZ, MCP_16MHZ, MCP_12MHZ, MCP_8MHZ
 } CAN_CLOCK;
 
 typedef enum {
@@ -67,6 +67,31 @@ typedef enum {
 	RXB0 = 0, RXB1 = 1
 } RXBn;
 
+
+/**
+ * @brief Test individual SPI byte transfer.
+ *
+ * Sends a byte and returns what was received.
+ * Use this to diagnose SPI issues:
+ * - If always 0x00: likely MISO not connected
+ * - If always 0xFF: likely pulled up or no CS working
+ * - If echoes back: good sign, but check MISO isolation
+ *
+ * @param txByte Byte to transmit
+ * @return Byte received from SPI
+ */
+uint8_t MCP_testSPIByte(uint8_t txByte); //
+
+/**
+ * @brief Test SPI communication with MCP2515.
+ *
+ * Reads CANSTAT register to verify SPI is working.
+ * Expected value after reset: 0x80 (CONFIG mode)
+ * If no chip/bad SPI: likely 0xFF
+ *
+ * @return CANSTAT register value
+ */
+uint8_t MCP_testSPIComm(void); //
 
 /**
  * @brief Reset and initialize the MCP2515 controller.

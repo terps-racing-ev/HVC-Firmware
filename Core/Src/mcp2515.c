@@ -51,6 +51,20 @@ uint8_t SPI_transfer(uint8_t txByte){
 }
 
 /**
+ * @brief Diagnostic function to test SPI byte transfer
+ * 
+ * Sends a known byte and returns what was received.
+ * Useful for checking if SPI is echoing data or stuck at 0x00/0xFF
+ * 
+ * @param txByte Byte to send
+ * @return Received byte
+ */
+uint8_t MCP_testSPIByte(uint8_t txByte)
+{
+	return SPI_transfer(txByte);
+}
+
+/**
  * @brief Write a single register on the MCP2515.
  *
  * @param reg Register address to write.
@@ -340,6 +354,19 @@ CAN_Error MCP2515_reset(void)
     return ERROR_OK;
 }
 
+/**
+ * @brief Test SPI communication with MCP2515
+ * 
+ * Reads CANSTAT register which should be 0x80 after reset (CONFIG mode).
+ * This verifies basic SPI communication is working.
+ * 
+ * @return CANSTAT register value (0x80 expected after reset, 0xFF likely if no chip)
+ */
+uint8_t MCP_testSPIComm(void)
+{
+    return readRegister(MCP_CANSTAT);
+}
+
 CAN_Error MCP_reset(void)
 {
     startSPI();
@@ -425,6 +452,99 @@ CAN_Error MCP_setBitrateClock(CAN_SPEED canSpeed, CAN_CLOCK canClock)
     set = 1;
     switch (canClock)
     {
+        case (MCP_12MHZ):
+        switch (canSpeed)
+        {
+            case (CAN_5KBPS):                                               //   5KBPS
+            cfg1 = MCP_12MHz_5kBPS_CFG1;
+            cfg2 = MCP_12MHz_5kBPS_CFG2;
+            cfg3 = MCP_12MHz_5kBPS_CFG3;
+            break;
+
+            case (CAN_10KBPS):                                              //  10KBPS
+            cfg1 = MCP_12MHz_10kBPS_CFG1;
+            cfg2 = MCP_12MHz_10kBPS_CFG2;
+            cfg3 = MCP_12MHz_10kBPS_CFG3;
+            break;
+
+            case (CAN_20KBPS):                                              //  20KBPS
+            cfg1 = MCP_12MHz_20kBPS_CFG1;
+            cfg2 = MCP_12MHz_20kBPS_CFG2;
+            cfg3 = MCP_12MHz_20kBPS_CFG3;
+            break;
+
+            case (CAN_31K25BPS):                                            //  31.25KBPS
+            cfg1 = MCP_12MHz_31k25BPS_CFG1;
+            cfg2 = MCP_12MHz_31k25BPS_CFG2;
+            cfg3 = MCP_12MHz_31k25BPS_CFG3;
+            break;
+
+            case (CAN_33KBPS):                                              //  33.333KBPS
+            cfg1 = MCP_12MHz_33k3BPS_CFG1;
+            cfg2 = MCP_12MHz_33k3BPS_CFG2;
+            cfg3 = MCP_12MHz_33k3BPS_CFG3;
+            break;
+
+            case (CAN_40KBPS):                                              //  40Kbps
+            cfg1 = MCP_12MHz_40kBPS_CFG1;
+            cfg2 = MCP_12MHz_40kBPS_CFG2;
+            cfg3 = MCP_12MHz_40kBPS_CFG3;
+            break;
+
+            case (CAN_50KBPS):                                              //  50Kbps
+            cfg1 = MCP_12MHz_50kBPS_CFG1;
+            cfg2 = MCP_12MHz_50kBPS_CFG2;
+            cfg3 = MCP_12MHz_50kBPS_CFG3;
+            break;
+
+            case (CAN_80KBPS):                                              //  80Kbps
+            cfg1 = MCP_12MHz_80kBPS_CFG1;
+            cfg2 = MCP_12MHz_80kBPS_CFG2;
+            cfg3 = MCP_12MHz_80kBPS_CFG3;
+            break;
+
+            case (CAN_100KBPS):                                             // 100Kbps
+            cfg1 = MCP_12MHz_100kBPS_CFG1;
+            cfg2 = MCP_12MHz_100kBPS_CFG2;
+            cfg3 = MCP_12MHz_100kBPS_CFG3;
+            break;
+
+            case (CAN_125KBPS):                                             // 125Kbps
+            cfg1 = MCP_12MHz_125kBPS_CFG1;
+            cfg2 = MCP_12MHz_125kBPS_CFG2;
+            cfg3 = MCP_12MHz_125kBPS_CFG3;
+            break;
+
+            case (CAN_200KBPS):                                             // 200Kbps
+            cfg1 = MCP_12MHz_200kBPS_CFG1;
+            cfg2 = MCP_12MHz_200kBPS_CFG2;
+            cfg3 = MCP_12MHz_200kBPS_CFG3;
+            break;
+
+            case (CAN_250KBPS):                                             // 250Kbps
+            cfg1 = MCP_12MHz_250kBPS_CFG1;
+            cfg2 = MCP_12MHz_250kBPS_CFG2;
+            cfg3 = MCP_12MHz_250kBPS_CFG3;
+            break;
+
+            case (CAN_500KBPS):                                             // 500Kbps
+            cfg1 = MCP_12MHz_500kBPS_CFG1;
+            cfg2 = MCP_12MHz_500kBPS_CFG2;
+            cfg3 = MCP_12MHz_500kBPS_CFG3;
+            break;
+
+            case (CAN_1000KBPS):                                            //   1Mbps
+            cfg1 = MCP_12MHz_1000kBPS_CFG1;
+            cfg2 = MCP_12MHz_1000kBPS_CFG2;
+            cfg3 = MCP_12MHz_1000kBPS_CFG3;
+            break;
+
+            default:
+            set = 0;
+            break;
+        }
+        break;
+
         case (MCP_8MHZ):
         switch (canSpeed)
         {
@@ -704,7 +824,7 @@ CAN_Error MCP_setBitrateClock(CAN_SPEED canSpeed, CAN_CLOCK canClock)
 
 CAN_Error MCP_setBitrate( CAN_SPEED canSpeed)
 {
-    return MCP_setBitrateClock(canSpeed, MCP_16MHZ);
+    return MCP_setBitrateClock(canSpeed, MCP_12MHZ);
 }
 
 

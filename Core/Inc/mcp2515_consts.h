@@ -10,6 +10,65 @@
 #include <stdint.h>
 
 /*
+ *  Speed 12M
+ */
+#define MCP_12MHz_1000kBPS_CFG1 (0x00)
+#define MCP_12MHz_1000kBPS_CFG2 (0x82)
+#define MCP_12MHz_1000kBPS_CFG3 (0x80)
+
+#define MCP_12MHz_500kBPS_CFG1 (0x00)
+#define MCP_12MHz_500kBPS_CFG2 (0x8A)
+#define MCP_12MHz_500kBPS_CFG3 (0x82)
+
+#define MCP_12MHz_250kBPS_CFG1 (0x00)
+#define MCP_12MHz_250kBPS_CFG2 (0xB6)
+#define MCP_12MHz_250kBPS_CFG3 (0x85)
+
+#define MCP_12MHz_200kBPS_CFG1 (0x00)
+#define MCP_12MHz_200kBPS_CFG2 (0xBA)
+#define MCP_12MHz_200kBPS_CFG3 (0x87)
+
+#define MCP_12MHz_125kBPS_CFG1 (0x01)
+#define MCP_12MHz_125kBPS_CFG2 (0xB6)
+#define MCP_12MHz_125kBPS_CFG3 (0x85)
+
+#define MCP_12MHz_100kBPS_CFG1 (0x01)
+#define MCP_12MHz_100kBPS_CFG2 (0xBE)
+#define MCP_12MHz_100kBPS_CFG3 (0x87)
+
+#define MCP_12MHz_80kBPS_CFG1 (0x01)
+#define MCP_12MHz_80kBPS_CFG2 (0xC5)
+#define MCP_12MHz_80kBPS_CFG3 (0x89)
+
+#define MCP_12MHz_50kBPS_CFG1 (0x03)
+#define MCP_12MHz_50kBPS_CFG2 (0xB6)
+#define MCP_12MHz_50kBPS_CFG3 (0x85)
+
+#define MCP_12MHz_40kBPS_CFG1 (0x03)
+#define MCP_12MHz_40kBPS_CFG2 (0xBE)
+#define MCP_12MHz_40kBPS_CFG3 (0x87)
+
+#define MCP_12MHz_33k3BPS_CFG1 (0x04)
+#define MCP_12MHz_33k3BPS_CFG2 (0xB9)
+#define MCP_12MHz_33k3BPS_CFG3 (0x86)
+
+#define MCP_12MHz_31k25BPS_CFG1 (0x05)
+#define MCP_12MHz_31k25BPS_CFG2 (0xAC)
+#define MCP_12MHz_31k25BPS_CFG3 (0x84)
+
+#define MCP_12MHz_20kBPS_CFG1 (0x09)
+#define MCP_12MHz_20kBPS_CFG2 (0xB6)
+#define MCP_12MHz_20kBPS_CFG3 (0x85)
+
+#define MCP_12MHz_10kBPS_CFG1 (0x13)
+#define MCP_12MHz_10kBPS_CFG2 (0xB6)
+#define MCP_12MHz_10kBPS_CFG3 (0x85)
+
+#define MCP_12MHz_5kBPS_CFG1 (0x27)
+#define MCP_12MHz_5kBPS_CFG2 (0xB6)
+#define MCP_12MHz_5kBPS_CFG3 (0x85)
+
+/*
  *  Speed 8M
  */
 #define MCP_8MHz_1000kBPS_CFG1 (0x00)

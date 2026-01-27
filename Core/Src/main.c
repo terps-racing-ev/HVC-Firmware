@@ -27,6 +27,7 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
@@ -68,9 +69,14 @@ const osThreadAttr_t SPIIntCallback_attributes = {
 };
 /* Definitions for CANManagerTask */
 osThreadId_t CANManagerTaskHandle;
+uint32_t CANManagerTaskBuffer[ 128 ];
+osStaticThreadDef_t CANManagerTaskControlBlock;
 const osThreadAttr_t CANManagerTask_attributes = {
   .name = "CANManagerTask",
-  .stack_size = 128 * 4,
+  .cb_mem = &CANManagerTaskControlBlock,
+  .cb_size = sizeof(CANManagerTaskControlBlock),
+  .stack_mem = &CANManagerTaskBuffer[0],
+  .stack_size = sizeof(CANManagerTaskBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for CAN */
@@ -140,8 +146,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
   MCP_reset();
   MCP_clearInterrupts();
-  MCP_setBitrateClock(CAN_500KBPS, MCP_8MHZ);
+  MCP_setBitrateClock(CAN_500KBPS, MCP_12MHZ);
   MCP_setNormalMode();
+
+    // Start CAN peripheral
+  if (HAL_CAN_Start(&hcan1) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -163,7 +175,13 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+
+    // Initialize CAN Manager (creates TX and RX message queues)
+  if (CAN_Manager_Init() != HAL_OK)
+  {
+    Error_Handler();
+  }
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -340,8 +358,28 @@ static void MX_CAN1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN1_Init 2 */
+    // Configure CAN filter BEFORE starting CAN
+  // Accept all extended CAN IDs (for debugging)
+  CAN_FilterTypeDef filterConfig;
+  filterConfig.FilterBank = 0;
+  filterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  filterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+  
+  // Accept all extended IDs: ID=0, Mask=0 means "don't care about any bits"
+  filterConfig.FilterIdHigh = 0x0000;
+  filterConfig.FilterIdLow = 0x0004;   // Only IDE bit set (extended ID)
+  filterConfig.FilterMaskIdHigh = 0x0000;  // Don't care about any ID bits
+  filterConfig.FilterMaskIdLow = 0x0004;   // But we DO care about IDE bit (only extended)
+  
+  filterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;
+  filterConfig.FilterActivation = ENABLE;
+  filterConfig.SlaveStartFilterBank = 14;
+  
+  if (HAL_CAN_ConfigFilter(&hcan1, &filterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-  CAN_Manager_Init();
   /* USER CODE END CAN1_Init 2 */
 
 }
@@ -434,7 +472,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -482,7 +520,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : LV_CAN_INT_Pin */
   GPIO_InitStruct.Pin = LV_CAN_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(LV_CAN_INT_GPIO_Port, &GPIO_InitStruct);
 
@@ -527,9 +565,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN)
 {
     
     if (GPIO_PIN == LV_CAN_INT_Pin) {
-        // Handle CAN interrupt
-        // Set flag so we don't do SPI transactions in ISR
-        osThreadFlagsSet(SPIIntCallbackHandle, 0x0001);
+      // Handle CAN interrupt
+      // Set flag so we don't do SPI transactions in ISR
+      osThreadFlagsSet(SPIIntCallbackHandle, 0x0001);
     }
 }
 
