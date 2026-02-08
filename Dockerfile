@@ -2,8 +2,11 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install base dependencies
+# Install base dependencies (enable universe for Ruby)
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && add-apt-repository universe \
+    && apt-get update && apt-get install -y \
     build-essential \
     cmake \
     git \
@@ -16,7 +19,11 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     openssh-client \
     ca-certificates \
+    ruby-full \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Ceedling for unit tests
+RUN gem install ceedling
 
 # Versions matching your .stm32env
 ARG ARM_GCC_VERSION=14.2.rel1
