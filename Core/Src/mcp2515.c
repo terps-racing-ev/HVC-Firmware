@@ -20,7 +20,7 @@
     TERMS.
 */
 
-#include "MCP2515.h"
+#include "mcp2515.h"
 
 /* SPI related variables */
 extern SPI_HandleTypeDef        hspi1;
