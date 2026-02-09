@@ -30,7 +30,7 @@ extern "C" {
 #include <string.h>
 #include <stdbool.h>
 #include "can.h"
-#include "mcp2515.h"
+#include "CANSPI.h"
 
 /* Defines -------------------------------------------------------------------*/
 #define CAN_TX_QUEUE_SIZE 64        // Number of messages that can be queued

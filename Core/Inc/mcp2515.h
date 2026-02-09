@@ -1,241 +1,251 @@
 /*
- * mcp2515.h
- */
+    (c) 2016 Microchip Technology Inc. and its subsidiaries. You may use this
+    software and any derivatives exclusively with Microchip products.
 
-#ifndef APPLICATION_USER_INC_MCP2515_H_
-#define APPLICATION_USER_INC_MCP2515_H_
+    THIS SOFTWARE IS SUPPLIED BY MICROCHIP "AS IS". NO WARRANTIES, WHETHER
+    EXPRESS, IMPLIED OR STATUTORY, APPLY TO THIS SOFTWARE, INCLUDING ANY IMPLIED
+    WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY, AND FITNESS FOR A
+    PARTICULAR PURPOSE, OR ITS INTERACTION WITH MICROCHIP PRODUCTS, COMBINATION
+    WITH ANY OTHER PRODUCTS, OR USE IN ANY APPLICATION.
 
-#include <stdint.h>
-#include "can.h"
-#include "mcp2515_consts.h"
-#include "cmsis_os.h"
-#include "main.h" // Todo: yucky circular dependency
+    IN NO EVENT WILL MICROCHIP BE LIABLE FOR ANY INDIRECT, SPECIAL, PUNITIVE,
+    INCIDENTAL OR CONSEQUENTIAL LOSS, DAMAGE, COST OR EXPENSE OF ANY KIND
+    WHATSOEVER RELATED TO THE SOFTWARE, HOWEVER CAUSED, EVEN IF MICROCHIP HAS
+    BEEN ADVISED OF THE POSSIBILITY OR THE DAMAGES ARE FORESEEABLE. TO THE
+    FULLEST EXTENT ALLOWED BY LAW, MICROCHIP'S TOTAL LIABILITY ON ALL CLAIMS IN
+    ANY WAY RELATED TO THIS SOFTWARE WILL NOT EXCEED THE AMOUNT OF FEES, IF ANY,
+    THAT YOU HAVE PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.
 
-typedef enum {
-	ERROR_OK = 0,
-	ERROR_FAIL = 1,
-	ERROR_ALLTXBUSY = 2,
-	ERROR_FAILINIT = 3,
-	ERROR_FAILTX = 4,
-	ERROR_NOMSG = 5
-} CAN_Error;
+    MICROCHIP PROVIDES THIS SOFTWARE CONDITIONALLY UPON YOUR ACCEPTANCE OF THESE
+    TERMS.
+*/
 
-typedef enum {
-	CLKOUT_DISABLE = -1,
-	CLKOUT_DIV1 = 0x0,
-	CLKOUT_DIV2 = 0x1,
-	CLKOUT_DIV4 = 0x2,
-	CLKOUT_DIV8 = 0x3,
-} CAN_CLKOUT;
+#ifndef __MCP2515_H
+#define	__MCP2515_H
 
-typedef enum {
-	MCP_20MHZ, MCP_16MHZ, MCP_12MHZ, MCP_8MHZ
-} CAN_CLOCK;
+#include <stdbool.h>
+#include "main.h"
 
-typedef enum {
-	CAN_5KBPS,
-	CAN_10KBPS,
-	CAN_20KBPS,
-	CAN_31K25BPS,
-	CAN_33KBPS,
-	CAN_40KBPS,
-	CAN_50KBPS,
-	CAN_80KBPS,
-	CAN_83K3BPS,
-	CAN_95KBPS,
-	CAN_100KBPS,
-	CAN_125KBPS,
-	CAN_200KBPS,
-	CAN_250KBPS,
-	CAN_500KBPS,
-	CAN_1000KBPS
-} CAN_SPEED;
+/* MCP2515 SPI Instruction Set */
+#define MCP2515_RESET           0xC0
 
-typedef enum {
-	MASK0, MASK1
-} MASK;
+#define MCP2515_READ            0x03
+#define MCP2515_READ_RXB0SIDH   0x90
+#define MCP2515_READ_RXB0D0     0x92
+#define MCP2515_READ_RXB1SIDH   0x94
+#define MCP2515_READ_RXB1D0     0x96
 
-typedef enum {
-	RXF0 = 0, RXF1 = 1, RXF2 = 2, RXF3 = 3, RXF4 = 4, RXF5 = 5
-} RXF;
+#define MCP2515_WRITE           0x02
+#define MCP2515_LOAD_TXB0SIDH   0x40    /* TX0 ID location */
+#define MCP2515_LOAD_TXB0D0     0x41    /* TX0 Data location */
+#define MCP2515_LOAD_TXB1SIDH   0x42    /* TX1 ID location */
+#define MCP2515_LOAD_TXB1D0     0x43    /* TX1 Data location */
+#define MCP2515_LOAD_TXB2SIDH   0x44    /* TX2 ID location */
+#define MCP2515_LOAD_TXB2D0     0x45    /* TX2 Data location */
 
-typedef enum {
-	TXB0 = 0, TXB1 = 1, TXB2 = 2
-} TXBn;
+#define MCP2515_RTS_TX0         0x81
+#define MCP2515_RTS_TX1         0x82
+#define MCP2515_RTS_TX2         0x84
+#define MCP2515_RTS_ALL         0x87
+#define MCP2515_READ_STATUS     0xA0
+#define MCP2515_RX_STATUS       0xB0
+#define MCP2515_BIT_MOD         0x05
 
-typedef enum {
-	RXB0 = 0, RXB1 = 1
-} RXBn;
+/* MCP25152515 Register Adresses */
+#define MCP2515_RXF0SIDH	0x00
+#define MCP2515_RXF0SIDL	0x01
+#define MCP2515_RXF0EID8	0x02
+#define MCP2515_RXF0EID0	0x03
+#define MCP2515_RXF1SIDH	0x04
+#define MCP2515_RXF1SIDL	0x05
+#define MCP2515_RXF1EID8	0x06
+#define MCP2515_RXF1EID0	0x07
+#define MCP2515_RXF2SIDH	0x08
+#define MCP2515_RXF2SIDL	0x09
+#define MCP2515_RXF2EID8	0x0A
+#define MCP2515_RXF2EID0	0x0B
+#define MCP2515_CANSTAT		0x0E
+#define MCP2515_CANCTRL		0x0F
 
+#define MCP2515_RXF3SIDH	0x10
+#define MCP2515_RXF3SIDL	0x11
+#define MCP2515_RXF3EID8	0x12
+#define MCP2515_RXF3EID0	0x13
+#define MCP2515_RXF4SIDH	0x14
+#define MCP2515_RXF4SIDL	0x15
+#define MCP2515_RXF4EID8	0x16
+#define MCP2515_RXF4EID0	0x17
+#define MCP2515_RXF5SIDH	0x18
+#define MCP2515_RXF5SIDL	0x19
+#define MCP2515_RXF5EID8	0x1A
+#define MCP2515_RXF5EID0	0x1B
+#define MCP2515_TEC		0x1C
+#define MCP2515_REC		0x1D
 
-/**
- * @brief Test individual SPI byte transfer.
- *
- * Sends a byte and returns what was received.
- * Use this to diagnose SPI issues:
- * - If always 0x00: likely MISO not connected
- * - If always 0xFF: likely pulled up or no CS working
- * - If echoes back: good sign, but check MISO isolation
- *
- * @param txByte Byte to transmit
- * @return Byte received from SPI
- */
-uint8_t MCP_testSPIByte(uint8_t txByte); //
+#define MCP2515_RXM0SIDH	0x20
+#define MCP2515_RXM0SIDL	0x21
+#define MCP2515_RXM0EID8	0x22
+#define MCP2515_RXM0EID0	0x23
+#define MCP2515_RXM1SIDH	0x24
+#define MCP2515_RXM1SIDL	0x25
+#define MCP2515_RXM1EID8	0x26
+#define MCP2515_RXM1EID0	0x27
+#define MCP2515_CNF3		0x28
+#define MCP2515_CNF2		0x29
+#define MCP2515_CNF1		0x2A
+#define MCP2515_CANINTE		0x2B
+#define MCP2515_CANINTF		0x2C
+#define MCP2515_EFLG		0x2D
 
-/**
- * @brief Test SPI communication with MCP2515.
- *
- * Reads CANSTAT register to verify SPI is working.
- * Expected value after reset: 0x80 (CONFIG mode)
- * If no chip/bad SPI: likely 0xFF
- *
- * @return CANSTAT register value
- */
-uint8_t MCP_testSPIComm(void); //
+#define MCP2515_TXB0CTRL	0x30
+#define MCP2515_TXB1CTRL	0x40
+#define MCP2515_TXB2CTRL	0x50
+#define MCP2515_RXB0CTRL	0x60
+#define MCP2515_RXB0SIDH	0x61
+#define MCP2515_RXB1CTRL	0x70
+#define MCP2515_RXB1SIDH	0x71
 
-/**
- * @brief Reset and initialize the MCP2515 controller.
- *
- * Performs a soft reset and basic initialization of filters, masks and
- * interrupt settings.
- */
-CAN_Error MCP_reset(void); //
-/**
- * @brief Enter listen-only mode (receive-only, no ACKs) on the MCP2515.
- */
-CAN_Error MCP_setListenOnlyMode(); //
-/**
- * @brief Put the MCP2515 into sleep (low-power) mode.
- */
-CAN_Error MCP_setSleepMode(); //
-/**
- * @brief Put the MCP2515 into loopback (self-test) mode.
- */
-CAN_Error MCP_setLoopbackMode(); //
-/**
- * @brief Put the MCP2515 into normal (active) CAN bus operation mode.
- */
-CAN_Error MCP_setNormalMode(); //
-/**
- * @brief Configure CAN bitrate assuming a 16 MHz MCP clock.
- *
- * Convenience wrapper around MCP_setBitrateClock().
- */
-CAN_Error MCP_setBitrate(CAN_SPEED canSpeed); //
-/**
- * @brief Configure CAN bitrate for a specific MCP clock source.
- *
- * @param canSpeed Desired CAN bus speed.
- * @param canClock MCP oscillator clock selection.
- */
-CAN_Error MCP_setBitrateClock(CAN_SPEED canSpeed, CAN_CLOCK canClock); //
-/**
- * @brief Program a filter mask (MASK0 or MASK1).
- *
- * @param num Mask index.
- * @param ext Non-zero for extended ID mask.
- * @param ulData Mask value.
- */
-CAN_Error MCP_setFilterMask(MASK num, uint8_t ext, uint32_t ulData); //
-/**
- * @brief Program one receive filter (RXF0..RXF5).
- *
- * @param num Filter index.
- * @param ext Non-zero for extended ID filter.
- * @param ulData Filter ID value.
- */
-CAN_Error MCP_setFilter(RXF num, uint8_t ext, uint32_t ulData); //
-/**
- * @brief Send a CAN frame using a specific transmit buffer.
- *
- * @param txbn Transmit buffer index.
- * @param frame Pointer to can_frame to send.
- */
-CAN_Error MCP_sendMessageTo(TXBn txbn, can_frame *frame); //
-/**
- * @brief Send a CAN frame using the next available transmit buffer.
- *
- * @param frame Pointer to the can_frame to send.
- */
-CAN_Error MCP_sendMessage(can_frame *frame); //
-/**
- * @brief Read a CAN frame from a specific receive buffer into @p frame.
- *
- * @param rxbn Receive buffer index.
- * @param frame Pointer to can_frame to receive data.
- */
-CAN_Error MCP_readMessageFrom(RXBn rxbn, can_frame *frame); //
-/**
- * @brief Read a CAN frame if available (checks RX0/RX1 flags).
- *
- * @param frame Pointer to can_frame to receive data.
- */
-CAN_Error MCP_readMessage(can_frame *frame); //
-/**
- * @brief Check if a receive message is available.
- *
- * @return 1 if a message is available, 0 otherwise.
- */
-uint8_t MCP_checkReceive(void); //
-/**
- * @brief Check whether an error condition is present.
- *
- * @return 1 if an error is present, 0 otherwise.
- */
-uint8_t MCP_checkError(void); //
+/* Defines for Rx Status */
+#define MSG_IN_RXB0             0x01
+#define MSG_IN_RXB1             0x02
+#define MSG_IN_BOTH_BUFFERS     0x03
 
-/**
- * @brief Read the MCP2515 EFLG (error) register.
- *
- * @return Raw EFLG register value.
- */
-uint8_t MCP_getErrorFlags(void); //
-/**
- * @brief Clear RX overflow flags.
- */
-void MCP_clearRXnOVRFlags(void); //
+typedef union{
+  struct{
+    unsigned RX0IF      : 1;
+    unsigned RX1IF      : 1;
+    unsigned TXB0REQ    : 1;
+    unsigned TX0IF      : 1;
+    unsigned TXB1REQ    : 1;
+    unsigned TX1IF      : 1;
+    unsigned TXB2REQ    : 1;
+    unsigned TX2IF      : 1;
+  };
+  uint8_t ctrl_status;  
+}ctrl_status_t;
 
-/**
- * @brief Read the interrupt flag register (CANINTF).
- */
-uint8_t MCP_getInterrupts(void); //
+typedef union{
+  struct{
+    unsigned filter     : 3;
+    unsigned msgType    : 2;
+    unsigned unusedBit  : 1;
+    unsigned rxBuffer   : 2;
+  };
+  uint8_t ctrl_rx_status;
+}ctrl_rx_status_t;
 
-/**
- * @brief Read the interrupt enable mask (CANINTE).
- */
-uint8_t MCP_getInterruptMask(void); //
+typedef union{
+  struct{
+    unsigned EWARN      :1;
+    unsigned RXWAR      :1;
+    unsigned TXWAR      :1;
+    unsigned RXEP       :1;
+    unsigned TXEP       :1;
+    unsigned TXBO       :1;
+    unsigned RX0OVR     :1;
+    unsigned RX1OVR     :1;  
+  };
+  uint8_t error_flag_reg;
+}ctrl_error_status_t;
 
-/**
- * @brief Clear all interrupt flags (CANINTF).
- */
-void MCP_clearInterrupts(void); //
+typedef union{
+  struct{
+    uint8_t RXBnSIDH;
+    uint8_t RXBnSIDL;
+    uint8_t RXBnEID8;
+    uint8_t RXBnEID0;
+    uint8_t RXBnDLC;
+    uint8_t RXBnD0;
+    uint8_t RXBnD1;
+    uint8_t RXBnD2;
+    uint8_t RXBnD3;
+    uint8_t RXBnD4;
+    uint8_t RXBnD5;
+    uint8_t RXBnD6;
+    uint8_t RXBnD7;
+  };
+  uint8_t rx_reg_array[13];
+}rx_reg_t;
 
-/**
- * @brief Clear transmit complete interrupt flags for all TX buffers.
- */
-void MCP_clearTXInterrupts(void); 
-/**
- * @brief Read the MCP2515 read-status command result.
- *
- * @return Status byte returned by the MCP read-status instruction.
- */
-uint8_t MCP_getStatus(void); //
+/* MCP2515 Registers */
+typedef struct{
+  uint8_t RXF0SIDH;
+  uint8_t RXF0SIDL;
+  uint8_t RXF0EID8;
+  uint8_t RXF0EID0;
+}RXF0;
 
-/**
- * @brief Clear RX overflow conditions and related interrupts if set.
- */
-void MCP_clearRXnOVR(void); //
+typedef struct{
+  uint8_t RXF1SIDH;
+  uint8_t RXF1SIDL;
+  uint8_t RXF1EID8;
+  uint8_t RXF1EID0;
+}RXF1;
 
-/**
- * @brief Clear the message error (MERRF) interrupt flag.
- */
-void MCP_clearMERR(); //
+typedef struct{
+  uint8_t RXF2SIDH;
+  uint8_t RXF2SIDL;
+  uint8_t RXF2EID8;
+  uint8_t RXF2EID0;
+}RXF2;
 
-/**
- * @brief Clear the error interrupt flag (ERRIF).
- */
-void MCP_clearERRIF(); //
+typedef struct{
+  uint8_t RXF3SIDH;
+  uint8_t RXF3SIDL;
+  uint8_t RXF3EID8;
+  uint8_t RXF3EID0;
+}RXF3;
 
-uint8_t readRegister(REGISTER reg);
+typedef struct{
+  uint8_t RXF4SIDH;
+  uint8_t RXF4SIDL;
+  uint8_t RXF4EID8;
+  uint8_t RXF4EID0;
+}RXF4;
 
-#endif /* APPLICATION_USER_INC_MCP2515_H_ */
+typedef struct{
+  uint8_t RXF5SIDH;
+  uint8_t RXF5SIDL;
+  uint8_t RXF5EID8;
+  uint8_t RXF5EID0;
+}RXF5;
+
+typedef struct{
+  uint8_t RXM0SIDH;
+  uint8_t RXM0SIDL;
+  uint8_t RXM0EID8;
+  uint8_t RXM0EID0;
+}RXM0;
+
+typedef struct{
+  uint8_t RXM1SIDH;
+  uint8_t RXM1SIDL;
+  uint8_t RXM1EID8;
+  uint8_t RXM1EID0;
+}RXM1;
+
+typedef struct{
+  uint8_t tempSIDH;
+  uint8_t tempSIDL;
+  uint8_t tempEID8;
+  uint8_t tempEID0;
+}id_reg_t;
+
+/* Functions */
+bool MCP2515_Initialize(void);
+bool MCP2515_SetConfigMode(void);
+bool MCP2515_SetNormalMode(void);
+bool MCP2515_SetSleepMode(void);
+void MCP2515_Reset(void);
+uint8_t MCP2515_ReadByte (uint8_t address);
+void MCP2515_ReadRxSequence(uint8_t instruction, uint8_t *data, uint8_t length);
+void MCP2515_WriteByte(uint8_t address, uint8_t data);
+void MCP2515_WriteByteSequence(uint8_t startAddress, uint8_t endAddress, uint8_t *data);
+void MCP2515_LoadTxSequence(uint8_t instruction, uint8_t *idReg, uint8_t dlc, uint8_t *data);
+void MCP2515_LoadTxBuffer(uint8_t instruction, uint8_t data);
+void MCP2515_RequestToSend(uint8_t instruction);
+uint8_t MCP2515_ReadStatus(void);
+uint8_t MCP2515_GetRxStatus(void);
+void MCP2515_BitModify(uint8_t address, uint8_t mask, uint8_t data);
+
+#endif

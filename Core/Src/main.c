@@ -144,11 +144,6 @@ int main(void)
   MX_ADC1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-  MCP_reset();
-  MCP_clearInterrupts();
-  MCP_setBitrateClock(CAN_500KBPS, MCP_12MHZ);
-  MCP_setNormalMode();
-
     // Start CAN peripheral
   if (HAL_CAN_Start(&hcan1) != HAL_OK)
   {
@@ -237,8 +232,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
@@ -265,7 +261,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_HSI, RCC_MCODIV_2);
+  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_HSI48, RCC_MCODIV_4);
 }
 
 /**
@@ -484,7 +480,9 @@ static void MX_SPI1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SPI1_Init 2 */
-  
+    if (!CANSPI_Initialize()) {
+      Error_Handler();
+    }
   /* USER CODE END SPI1_Init 2 */
 
 }
@@ -511,12 +509,24 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD3_Pin|BMS_Fault_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin : Therm_Pin */
+  GPIO_InitStruct.Pin = Therm_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Therm_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : SPI1_CS_Pin */
   GPIO_InitStruct.Pin = SPI1_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : EMeter_Sig_Pin */
+  GPIO_InitStruct.Pin = EMeter_Sig_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(EMeter_Sig_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LV_CAN_INT_Pin */
   GPIO_InitStruct.Pin = LV_CAN_INT_Pin;
@@ -535,7 +545,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : IMD_Pin SDC_Pin */
   GPIO_InitStruct.Pin = IMD_Pin|SDC_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD3_Pin BMS_Fault_Pin */
@@ -583,16 +593,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  
+  HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
   /* Infinite loop */
   for(;;)
   {
-    // HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
-    osDelay(1000);
-    // HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
-    osDelay(1000);
+    HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin));
+    osDelay(50);
   }
   /* USER CODE END 5 */
 }

@@ -61,8 +61,12 @@ void Error_Handler(void);
 #define CS_HC_GPIO_Port GPIOA
 #define CS_LC_Pin GPIO_PIN_1
 #define CS_LC_GPIO_Port GPIOA
+#define Therm_Pin GPIO_PIN_3
+#define Therm_GPIO_Port GPIOA
 #define SPI1_CS_Pin GPIO_PIN_4
 #define SPI1_CS_GPIO_Port GPIOA
+#define EMeter_Sig_Pin GPIO_PIN_0
+#define EMeter_Sig_GPIO_Port GPIOB
 #define LV_CAN_INT_Pin GPIO_PIN_1
 #define LV_CAN_INT_GPIO_Port GPIOB
 #define LV_CAN_INT_EXTI_IRQn EXTI1_IRQn

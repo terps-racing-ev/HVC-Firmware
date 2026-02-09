@@ -33,6 +33,7 @@ static CAN_Statistics_t can_stats = {0};
 // static void CAN_ProcessTxQueue(void);
 // static void CAN_ProcessRxMessage(CAN_Message_t *msg);
 
+
 static HAL_StatusTypeDef CAN_TransmitMessage(CAN_Message_t *msg);
 // static void CAN_ConfigureFilters(void);
 
@@ -43,14 +44,14 @@ static HAL_StatusTypeDef CAN_TransmitMessage(CAN_Message_t *msg);
 HAL_StatusTypeDef CAN_Manager_Init(void)
 {
     // // Create TX message queues
-    // CAN_BMS_TxQueueHandle = osMessageQueueNew(CAN_TX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
-    // if (CAN_BMS_TxQueueHandle == NULL) {
-    //     return HAL_ERROR;
-    // }
-    // CAN_CTRL_TxQueueHandle = osMessageQueueNew(CAN_TX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
-    // if (CAN_CTRL_TxQueueHandle == NULL) {
-    //     return HAL_ERROR;
-    // }
+    CAN_BMS_TxQueueHandle = osMessageQueueNew(CAN_TX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
+    if (CAN_BMS_TxQueueHandle == NULL) {
+        return HAL_ERROR;
+    }
+    CAN_CTRL_TxQueueHandle = osMessageQueueNew(CAN_TX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
+    if (CAN_CTRL_TxQueueHandle == NULL) {
+        return HAL_ERROR;
+    }
     
     // Create RX message queues
     CAN_BMS_RxQueueHandle = osMessageQueueNew(CAN_RX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
@@ -74,7 +75,6 @@ HAL_StatusTypeDef CAN_Manager_Init(void)
                                               CAN_IT_BUSOFF) != HAL_OK) {
         return HAL_ERROR;
     }
-    
     // Reset statistics
     // CAN_ResetStatistics();
     
@@ -88,8 +88,6 @@ HAL_StatusTypeDef CAN_Manager_Init(void)
   */
 void CAN_ManagerTask(void *argument)
 {
-    HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-    CAN_Error ret;
     CAN_Message_t rx_msg;
     rx_msg.id = 0x000;
     rx_msg.length = 4;
@@ -106,17 +104,15 @@ void CAN_ManagerTask(void *argument)
     frame.data[3] = 0xFF;
 
     for (;;) {
-        // CAN_TransmitMessage(&rx_msg);
-        ret = MCP_sendMessage(&frame);
 
         // if (ret) {
         //     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
         // }
 
         // Blink LED while getting messages from BMS CAN
-        if (osMessageQueueGet(CAN_CTRL_RxQueueHandle, &rx_msg, NULL, 0) == osOK) {
-            HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-        }
+        // if (osMessageQueueGet(CAN_CTRL_RxQueueHandle, &rx_msg, NULL, 0) == osOK) {
+        //     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+        // }
         osDelay(100);
     }
 }
@@ -233,40 +229,27 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
   */
 void SPICANIntCallbackTask(void *argument)
 {   
+    uCAN_MSG rx_msg;
+
     
-    can_frame frame;
-    CAN_Message_t msg;
+    while (CANSPI_Receive(&rx_msg)) {
+        HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+    }
+    
     for (;;) {
-        // Wait for CAN interrupt flag
         // osThreadFlagsWait(0x0001, osFlagsWaitAny, osWaitForever);
-
-        // Process CAN interrupt
-        uint8_t irq = MCP_getInterrupts();
         
-        osThreadFlagsClear(0x0001);
-
-        if (irq & CANINTF_RX0IF || irq & CANINTF_RX1IF) {
-            CAN_Error ret = MCP_readMessage(&frame);
-            if (ret == ERROR_OK) {
-                // HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-                // Convert MCP can frame to CAN_Message_t
-                msg.id = frame.can_id;
-                msg.length = frame.can_dlc;
-                msg.priority = 0;
-                msg.timestamp = osKernelGetTickCount();
-
-                for (int i = 0; i < 8; i++) {
-                    msg.data[i] = frame.data[i];
-                }
-                
-                // TODO: message filtering?
-
-                if (osMessageQueuePut(CAN_CTRL_RxQueueHandle, &msg, 0, 0) != osOK) {
-                    can_stats.rx_queue_full_count++;    // TODO: diff CAN stats for ctrl bus
-                }
-            }
+        // osThreadFlagsClear(0x0001);
+        if (CANSPI_isRxErrorPassive()) {
+            HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
         }
-        osDelay(1000);
+        
+        while (CANSPI_Receive(&rx_msg)) {
+            // CANSPI_Transmit(&rx_msg);
+            HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+        }
+
+        osDelay(50);
     }
 }
 

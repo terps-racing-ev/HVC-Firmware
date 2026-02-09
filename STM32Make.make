@@ -75,6 +75,7 @@ endif
 ######################################
 # C sources
 C_SOURCES =  \
+Core/Src/CANSPI.c \
 Core/Src/can_manager.c \
 Core/Src/freertos.c \
 Core/Src/main.c \
