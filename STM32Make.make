@@ -41,15 +41,6 @@ TARGET ?= HVC
 
 BUILD_DIRECTORY ?= build
 
-#######################################
-# Unit tests (host)
-#######################################
-TEST_DIR ?= Tests
-TEST_BUILD_DIR ?= $(TEST_DIR)/build
-UNITY_DIR ?= $(TEST_DIR)/Unity
-CMOCK_DIR ?= $(TEST_DIR)/CMock
-HOST_CC ?= gcc
-
 
 ######################################
 # Optimization
@@ -258,24 +249,6 @@ CFLAGS += $(ASSEMBLER_LIST_OUTPUT_FLAG)
 CXXFLAGS += $(ASSEMBLER_LIST_OUTPUT_FLAG)
 
 #######################################
-# Unit test sources (host)
-#######################################
-TEST_SOURCES = $(wildcard $(TEST_DIR)/test_*.c)
-TEST_MODULES = $(patsubst $(TEST_DIR)/test_%.c,Core/Src/%.c,$(TEST_SOURCES))
-TEST_UNITY_SOURCES = $(UNITY_DIR)/unity.c
-TEST_CMOCK_SOURCES = $(CMOCK_DIR)/cmock.c
-
-TEST_CFLAGS = -Wall -Wextra -O0 -g -DUNIT_TEST \
-  -I$(TEST_DIR) -I$(UNITY_DIR) -I$(CMOCK_DIR) -ICore/Inc
-
-TEST_OBJECTS = $(addprefix $(TEST_BUILD_DIR)/,$(notdir $(TEST_SOURCES:.c=.o)))
-TEST_OBJECTS += $(addprefix $(TEST_BUILD_DIR)/,$(notdir $(TEST_MODULES:.c=.o)))
-TEST_OBJECTS += $(addprefix $(TEST_BUILD_DIR)/,$(notdir $(TEST_UNITY_SOURCES:.c=.o)))
-TEST_OBJECTS += $(addprefix $(TEST_BUILD_DIR)/,$(notdir $(TEST_CMOCK_SOURCES:.c=.o)))
-
-TEST_BINS = $(patsubst $(TEST_DIR)/test_%.c,$(TEST_BUILD_DIR)/test_%,$(TEST_SOURCES))
-
-#######################################
 # LDFLAGS
 #######################################
 # link script
@@ -311,7 +284,6 @@ vpath %.C $(sort $(dir $(CXX_SOURCES)))
 vpath %.CPP $(sort $(dir $(CXX_SOURCES)))
 vpath %.s $(sort $(dir $(ASM_SOURCES)))
 vpath %.S $(sort $(dir $(ASM_SOURCES)))
-vpath %.c $(TEST_DIR) Core/Src $(UNITY_DIR) $(CMOCK_DIR)
 
 #######################################
 # all
@@ -321,32 +293,9 @@ vpath %.c $(TEST_DIR) Core/Src $(UNITY_DIR) $(CMOCK_DIR)
 all: $(RELEASE_DIRECTORY)/$(TARGET).elf $(RELEASE_DIRECTORY)/$(TARGET).hex $(RELEASE_DIRECTORY)/$(TARGET).bin $(RELEASE_DIRECTORY)/$(TARGET).lss 
 
 
-#######################################
-# unit tests (host)
-#######################################
-test: $(TEST_BINS)
-
-test-run: test
-	@set -e; for t in $(TEST_BINS); do $$t; done
-
-test-clean:
-	$(REMOVE_DIRECTORY_COMMAND) $(TEST_BUILD_DIR)
-
-
 # C build
 $(RELEASE_DIRECTORY)/%.o: %.c STM32Make.make | $(RELEASE_DIRECTORY)
 	$(CC) -c $(CFLAGS) $< -o $@
-
-# Unit test build (host)
-$(TEST_BUILD_DIR):
-	$(call mkdir_function, $@)
-
-$(TEST_BUILD_DIR)/%.o: %.c STM32Make.make | $(TEST_BUILD_DIR)
-	$(HOST_CC) -c $(TEST_CFLAGS) $< -o $@
-
-$(TEST_BUILD_DIR)/test_%: $(TEST_BUILD_DIR)/test_%.o $(TEST_BUILD_DIR)/%.o \
-	$(TEST_BUILD_DIR)/unity.o $(TEST_BUILD_DIR)/cmock.o | $(TEST_BUILD_DIR)
-	$(HOST_CC) $^ -o $@
 
 # C++ build 
 $(RELEASE_DIRECTORY)/%.o: %.cc STM32Make.make | $(RELEASE_DIRECTORY)
@@ -428,8 +377,5 @@ clean:
 # dependencies
 #######################################
 -include $(wildcard $(RELEASE_DIRECTORY)/*.d)
--include $(wildcard $(TEST_BUILD_DIR)/*.d)
-
-.PHONY: all clean flash erase test test-run test-clean
 
 # *** EOF ***
