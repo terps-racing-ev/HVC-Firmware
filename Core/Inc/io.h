@@ -1,5 +1,5 @@
-#ifndef IO_DATA_H
-#define IO_DATA_H
+#ifndef IO_H
+#define IO_H
 
 #include "cmsis_os2.h"
 #include <stdint.h>
@@ -34,4 +34,4 @@ extern DigitalIO bms_fault;
 extern AnalogIO cs_low;
 extern AnalogIO cs_high;
 
-#endif /* IO_DATA_H */
+#endif /* IO_H */
