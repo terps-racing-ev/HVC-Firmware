@@ -1,45 +1,33 @@
-#ifndef CAN_H_
-#define CAN_H_
+#ifndef __CAN_H
+#define __CAN_H
 
-#include <stdint.h>
+/* Defines -------------------------------------------------------------------*/
+#define CAN_TX_QUEUE_SIZE 64        // Number of messages that can be queued
+#define CAN_RX_QUEUE_SIZE 32        // Number of received messages to buffer
+#define CAN_TX_TIMEOUT_MS 100       // Timeout for adding message to queue
+#define CAN_MAX_RETRIES 3           // Maximum transmission retry attempts
+#define CAN_HEARTBEAT_INTERVAL_MS 1000  // Heartbeat message interval (1 second)
 
-
-typedef unsigned char __u8;
-typedef unsigned short __u16;
-typedef unsigned long __u32;
-
-
-/* special address description flags for the CAN_ID */
-#define CAN_EFF_FLAG 0x80000000UL /* EFF/SFF is set in the MSB */
-#define CAN_RTR_FLAG 0x40000000UL /* remote transmission request */
-#define CAN_ERR_FLAG 0x20000000UL /* error message frame */
-
-/* valid bits in CAN ID for frame formats */
-#define CAN_SFF_MASK 0x000007FFUL /* standard frame format (SFF) */
-#define CAN_EFF_MASK 0x1FFFFFFFUL /* extended frame format (EFF) */
-#define CAN_ERR_MASK 0x1FFFFFFFUL /* omit EFF, RTR, ERR flags */
-
-/*
- * Controller Area Network Identifier structure
- *
- * bit 0-28 : CAN identifier (11/29 bit)
- * bit 29   : error message frame flag (0 = data frame, 1 = error message)
- * bit 30   : remote transmission request flag (1 = rtr frame)
- * bit 31   : frame format flag (0 = standard 11 bit, 1 = extended 29 bit)
- */
-typedef __u32 canid_t;
-
-#define CAN_SFF_ID_BITS     11
-#define CAN_EFF_ID_BITS     29
-
-/* CAN payload length and DLC definitions according to ISO 11898-1 */
-#define CAN_MAX_DLC 8
-#define CAN_MAX_DLEN 8
-
+/* CAN Message Structure */
 typedef struct {
-    canid_t can_id;  /* 32 bit CAN_ID + EFF/RTR/ERR flags */
-    __u8    can_dlc; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
-    __u8    data[CAN_MAX_DLEN];
-} can_frame;
+    uint32_t id;                    // CAN message ID (29-bit extended)
+    uint8_t data[8];                // Message data (up to 8 bytes)
+    uint8_t length;                 // Data length (0-8)
+    uint8_t priority;               // Message priority (0 = highest)
+    uint32_t timestamp;             // Timestamp when message was queued
+} CAN_Message_t;
+
+/* CAN Statistics Structure */
+typedef struct {
+    uint32_t tx_success_count;      // Successfully transmitted messages
+    uint32_t tx_error_count;        // Failed transmissions
+    uint32_t tx_queue_full_count;   // Times TX queue was full
+    uint32_t rx_message_count;      // Received messages
+    uint32_t rx_queue_full_count;   // Times RX queue was full
+    uint32_t bus_off_count;         // CAN bus-off events
+} CAN_Statistics_t;
+
+/* External Variables --------------------------------------------------------*/
+extern osMessageQueueId_t LV_CAN_TxQueueHandle;
 
 #endif /* CAN_H_ */

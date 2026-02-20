@@ -1,5 +1,5 @@
 #include "test_stubs.h"
-#include "CANSPI.h"
+#include "spi_can.h"
 
 static osMessageQueueId_t queue_new_results[8];
 static size_t queue_new_result_count = 0;
@@ -97,9 +97,31 @@ osStatus_t osMessageQueuePut(osMessageQueueId_t mq_id, const void *msg_ptr, uint
     return osOK;
 }
 
+osStatus_t osMessageQueueGet(osMessageQueueId_t mq_id, void *msg_ptr, uint8_t *msg_prio, uint32_t timeout)
+{
+    (void)mq_id;
+    (void)msg_ptr;
+    (void)msg_prio;
+    (void)timeout;
+    return osErrorTimeout;
+}
+
 void osDelay(uint32_t ticks)
 {
     (void)ticks;
+}
+
+uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
+{
+    (void)flags;
+    (void)options;
+    (void)timeout;
+    return 0;
+}
+
+uint32_t osThreadFlagsClear(uint32_t flags)
+{
+    return flags;
 }
 
 uint32_t osKernelGetTickCount(void)
@@ -149,13 +171,19 @@ void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState Pin
     (void)PinState;
 }
 
-int CANSPI_Receive(uCAN_MSG *msg)
+uint8_t CANSPI_Receive(uCAN_MSG *msg)
 {
     (void)msg;
     return 0;
 }
 
-int CANSPI_isRxErrorPassive(void)
+uint8_t CANSPI_Transmit(uCAN_MSG *tempCanMsg)
+{
+    (void)tempCanMsg;
+    return 1;
+}
+
+uint8_t CANSPI_isRxErrorPassive(void)
 {
     return 0;
 }
