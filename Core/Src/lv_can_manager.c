@@ -118,7 +118,7 @@ void SPI_CAN_Int_CallbackTask(void *argument)
 {   
     uCAN_MSG rx_msg;
     
-    // Clear out queue so the interrupt gets cleared at start
+    // Clear out queue so the SPI interrupt gets cleared at start
     while (CANSPI_Receive(&rx_msg)) {
         if (osMessageQueuePut(LV_CAN_TxQueueHandle, &rx_msg, 0, 0) != osOK) {
             lv_can_stats.rx_queue_full_count++;

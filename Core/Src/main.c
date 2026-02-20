@@ -570,10 +570,8 @@ static void MX_GPIO_Init(void)
   * @param  GPIO_PIN: specifies GPIO pin connected to EXTI line
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) 
 {
-    
     if (GPIO_PIN == LV_CAN_INT_Pin) {
       // Handle CAN interrupt
       // Set flag so we don't do SPI transactions in ISR
@@ -636,6 +634,7 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+    // TODO: Try sending error message on SPI CAN bus after checking its 
   }
   /* USER CODE END Error_Handler_Debug */
 }
