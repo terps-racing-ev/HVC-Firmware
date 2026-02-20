@@ -30,29 +30,15 @@ extern "C" {
 #include <string.h>
 #include <stdbool.h>
 #include "can.h"
-#include "CANSPI.h"
+#include "spi_can.h"
 
-/* Defines -------------------------------------------------------------------*/
-#define CAN_TX_QUEUE_SIZE 64        // Number of messages that can be queued
-#define CAN_RX_QUEUE_SIZE 32        // Number of received messages to buffer
-#define CAN_TX_TIMEOUT_MS 100       // Timeout for adding message to queue
-#define CAN_MAX_RETRIES 3           // Maximum transmission retry attempts
-#define CAN_HEARTBEAT_INTERVAL_MS 1000  // Heartbeat message interval (1 second)
+
 
 /* Message Priority Levels */
 #define CAN_PRIORITY_CRITICAL 0     // Safety-critical messages (highest)
 #define CAN_PRIORITY_HIGH 1         // Important operational messages
 #define CAN_PRIORITY_NORMAL 2       // Standard telemetry messages
 #define CAN_PRIORITY_LOW 3          // Debug/diagnostic messages (lowest)
-
-/* CAN Message Structure */
-typedef struct {
-    uint32_t id;                    // CAN message ID (29-bit extended)
-    uint8_t data[8];                // Message data (up to 8 bytes)
-    uint8_t length;                 // Data length (0-8)
-    uint8_t priority;               // Message priority (0 = highest)
-    uint32_t timestamp;             // Timestamp when message was queued
-} CAN_Message_t;
 
 /* CAN Statistics Structure */
 typedef struct {

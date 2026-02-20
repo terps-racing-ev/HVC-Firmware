@@ -20,7 +20,7 @@
     TERMS.
 */
 
-#include "CANSPI.h"
+#include "spi_can.h"
 #include "MCP2515.h"
 
 /** Local Function Prototypes */  
