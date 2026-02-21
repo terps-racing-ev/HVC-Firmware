@@ -40,16 +40,6 @@ extern "C" {
 #define CAN_PRIORITY_NORMAL 2       // Standard telemetry messages
 #define CAN_PRIORITY_LOW 3          // Debug/diagnostic messages (lowest)
 
-/* CAN Statistics Structure */
-typedef struct {
-    uint32_t tx_success_count;      // Successfully transmitted messages
-    uint32_t tx_error_count;        // Failed transmissions
-    uint32_t tx_queue_full_count;   // Times TX queue was full
-    uint32_t rx_message_count;      // Received messages
-    uint32_t rx_queue_full_count;   // Times RX queue was full
-    uint32_t bus_off_count;         // CAN bus-off events
-} CAN_Statistics_t;
-
 /* CAN Bus Identifier Structure*/
 typedef enum {
     CAN_BMS = 0,

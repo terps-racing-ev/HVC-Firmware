@@ -1,7 +1,7 @@
 #ifndef IO_H
 #define IO_H
 
-#include "cmsis_os2.h"
+#include "cmsis_os.h"
 #include <stdint.h>
 #include <time.h>
 

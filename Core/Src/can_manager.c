@@ -222,35 +222,4 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
     // }
 }
 
-/**
-  * @brief  SPI Int pending callback
-  * @param  argument: Not used
-  * @retval None
-  */
-void SPICANIntCallbackTask(void *argument)
-{   
-    uCAN_MSG rx_msg;
-
-    
-    while (CANSPI_Receive(&rx_msg)) {
-        HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-    }
-    
-    for (;;) {
-        // osThreadFlagsWait(0x0001, osFlagsWaitAny, osWaitForever);
-        
-        // osThreadFlagsClear(0x0001);
-        if (CANSPI_isRxErrorPassive()) {
-            HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
-        }
-        
-        while (CANSPI_Receive(&rx_msg)) {
-            // CANSPI_Transmit(&rx_msg);
-            HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-        }
-
-        osDelay(50);
-    }
-}
-
 

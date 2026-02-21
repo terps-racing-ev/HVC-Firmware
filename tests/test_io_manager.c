@@ -13,13 +13,13 @@ void tearDown(void)
 
 void test_IO_Manager_Init_success(void)
 {
-    osMutexId_t results[4] = { (void*)0x1, (void*)0x2, (void*)0x3, (void*)0x4 };
-    Test_SetMutexNewResults(results, 4);
+    osMutexId_t results[5] = { (void*)0x1, (void*)0x2, (void*)0x3, (void*)0x4, (void*)0x5 };
+    Test_SetMutexNewResults(results, 5);
     Test_SetAdcStartResult(HAL_OK);
     Test_SetCompStartResult(HAL_OK);
 
     TEST_ASSERT_EQUAL(HAL_OK, IO_Manager_Init());
-    TEST_ASSERT_EQUAL_UINT32(4, Test_GetMutexNewCallCount());
+    TEST_ASSERT_EQUAL_UINT32(5, Test_GetMutexNewCallCount());
 
     TEST_ASSERT_EQUAL_PTR(results[0], sdc.mutex);
     TEST_ASSERT_EQUAL_UINT8(0, sdc.value);
@@ -29,11 +29,15 @@ void test_IO_Manager_Init_success(void)
     TEST_ASSERT_EQUAL_UINT8(0, imd.value);
     TEST_ASSERT_EQUAL_UINT32(0, imd.last_updated);
 
-    TEST_ASSERT_EQUAL_PTR(results[2], cs_low.mutex);
+    TEST_ASSERT_EQUAL_PTR(results[2], bms_fault.mutex);
+    TEST_ASSERT_EQUAL_UINT8(0, bms_fault.value);
+    TEST_ASSERT_EQUAL_UINT32(0, bms_fault.last_updated);
+
+    TEST_ASSERT_EQUAL_PTR(results[3], cs_low.mutex);
     TEST_ASSERT_EQUAL_UINT16(0, cs_low.value);
     TEST_ASSERT_EQUAL_UINT32(0, cs_low.last_updated);
 
-    TEST_ASSERT_EQUAL_PTR(results[3], cs_high.mutex);
+    TEST_ASSERT_EQUAL_PTR(results[4], cs_high.mutex);
     TEST_ASSERT_EQUAL_UINT16(0, cs_high.value);
     TEST_ASSERT_EQUAL_UINT32(0, cs_high.last_updated);
 }

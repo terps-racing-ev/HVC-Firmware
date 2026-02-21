@@ -18,7 +18,7 @@
 /* USER CODE END Header */
 
 #include "io_manager.h"
-#include "cmsis_os2.h"
+#include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
 
 // External ADC handle (from main.c)
