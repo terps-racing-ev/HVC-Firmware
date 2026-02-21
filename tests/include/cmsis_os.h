@@ -23,6 +23,9 @@ osStatus_t osMessageQueueGet(osMessageQueueId_t mq_id, void *msg_ptr, uint8_t *m
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout);
 uint32_t osThreadFlagsClear(uint32_t flags);
 
+uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout);
+uint32_t osThreadFlagsClear(uint32_t flags);
+
 void osDelay(uint32_t ticks);
 uint32_t osKernelGetTickCount(void);
 
