@@ -12,7 +12,7 @@ TEST_DIR := tests
 BUILD_DIR := $(TEST_DIR)/build
 INCLUDE_DIRS := -I$(TEST_DIR)/include -ICore/Inc -ICore/Src
 
-UNITY_SOURCES := Core/Src/unity.c Core/Src/cmock.c
+UNITY_SOURCES := $(TEST_DIR)/unity.c $(TEST_DIR)/cmock.c
 COMMON_SOURCES := $(TEST_DIR)/stubs.c
 
 REQUESTED_TESTS := $(filter-out test clean,$(MAKECMDGOALS))
