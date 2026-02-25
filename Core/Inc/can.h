@@ -2,11 +2,19 @@
 #define __CAN_H
 
 /* Defines -------------------------------------------------------------------*/
+
+/* CAN Defaults */
 #define CAN_TX_QUEUE_SIZE 64        // Number of messages that can be queued
 #define CAN_RX_QUEUE_SIZE 32        // Number of received messages to buffer
 #define CAN_TX_TIMEOUT_MS 100       // Timeout for adding message to queue
 #define CAN_MAX_RETRIES 3           // Maximum transmission retry attempts
 #define CAN_HEARTBEAT_INTERVAL_MS 1000  // Heartbeat message interval (1 second)
+
+/* Message Priority Levels */
+#define CAN_PRIORITY_CRITICAL 0     // Safety-critical messages (highest)
+#define CAN_PRIORITY_HIGH 1         // Important operational messages
+#define CAN_PRIORITY_NORMAL 2       // Standard telemetry messages
+#define CAN_PRIORITY_LOW 3          // Debug/diagnostic messages (lowest)
 
 /* CAN Message Structure */
 typedef struct {
@@ -28,6 +36,12 @@ typedef struct {
 } CAN_Statistics_t;
 
 /* External Variables --------------------------------------------------------*/
+
+// LV CAN
 extern osMessageQueueId_t LV_CAN_TxQueueHandle;
+
+// BMS CAN
+extern osMessageQueueId_t BMS_CAN_TxQueueHandle;
+
 
 #endif /* CAN_H_ */

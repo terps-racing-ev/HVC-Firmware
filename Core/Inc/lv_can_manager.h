@@ -43,6 +43,12 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void);
   */
 void LV_CAN_ManagerTask(void *argument);
 
+/**
+  * @brief  SPI CAN interrupt handler
+  * @param  argument: Not used
+  * @retval None
+  */
+void SPI_CAN_Int_CallbackTask(void *argument);
 
 #ifdef __cplusplus
 }

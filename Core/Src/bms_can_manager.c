@@ -18,14 +18,10 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include "can_manager.h"
+#include "bms_can_manager.h"
 
 /* Private variables ---------------------------------------------------------*/
-osMessageQueueId_t CAN_BMS_TxQueueHandle = NULL;
-osMessageQueueId_t CAN_BMS_RxQueueHandle = NULL;
-
-osMessageQueueId_t CAN_CTRL_TxQueueHandle = NULL;
-osMessageQueueId_t CAN_CTRL_RxQueueHandle = NULL;
+osMessageQueueId_t BMS_CAN_RxQueueHandle = NULL;
 
 static CAN_Statistics_t can_stats = {0};
 
@@ -43,27 +39,15 @@ static HAL_StatusTypeDef CAN_TransmitMessage(CAN_Message_t *msg);
   */
 HAL_StatusTypeDef CAN_Manager_Init(void)
 {
-    // // Create TX message queues
-    CAN_BMS_TxQueueHandle = osMessageQueueNew(CAN_TX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
-    if (CAN_BMS_TxQueueHandle == NULL) {
+    // Create message queues
+    BMS_CAN_TxQueueHandle = osMessageQueueNew(CAN_TX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
+    if (BMS_CAN_TxQueueHandle == NULL) {
         return HAL_ERROR;
     }
-    CAN_CTRL_TxQueueHandle = osMessageQueueNew(CAN_TX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
-    if (CAN_CTRL_TxQueueHandle == NULL) {
+    BMS_CAN_RxQueueHandle = osMessageQueueNew(CAN_RX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
+    if (BMS_CAN_RxQueueHandle == NULL) {
         return HAL_ERROR;
     }
-    
-    // Create RX message queues
-    CAN_BMS_RxQueueHandle = osMessageQueueNew(CAN_RX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
-    if (CAN_BMS_RxQueueHandle == NULL) {
-        return HAL_ERROR;
-    }
-    // Create RX message queues
-    CAN_CTRL_RxQueueHandle = osMessageQueueNew(CAN_RX_QUEUE_SIZE, sizeof(CAN_Message_t), NULL);
-    if (CAN_CTRL_RxQueueHandle == NULL) {
-        return HAL_ERROR;
-    }
-
 
     // NOTE: CAN filter is now configured in MX_CAN1_Init() BEFORE HAL_CAN_Start()
     // This is critical - filters must be configured before starting CAN!
@@ -76,6 +60,7 @@ HAL_StatusTypeDef CAN_Manager_Init(void)
         return HAL_ERROR;
     }
     // Reset statistics
+    // TODO: implement statistics
     // CAN_ResetStatistics();
     
     return HAL_OK;
@@ -88,31 +73,8 @@ HAL_StatusTypeDef CAN_Manager_Init(void)
   */
 void CAN_ManagerTask(void *argument)
 {
-    CAN_Message_t rx_msg;
-    rx_msg.id = 0x000;
-    rx_msg.length = 4;
-    rx_msg.data[0] = 0xF1;
-    rx_msg.data[1] = 0xFF;
-    rx_msg.data[2] = 0xFF;
-    rx_msg.data[3] = 0xFF;
-    can_frame frame;
-    frame.can_id = 0x000;
-    frame.can_dlc = 4;
-    frame.data[0] = 0xFF;
-    frame.data[1] = 0xFF;
-    frame.data[2] = 0xFF;
-    frame.data[3] = 0xFF;
-
     for (;;) {
-
-        // if (ret) {
-        //     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-        // }
-
-        // Blink LED while getting messages from BMS CAN
-        // if (osMessageQueueGet(CAN_CTRL_RxQueueHandle, &rx_msg, NULL, 0) == osOK) {
-        //     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-        // }
+        // TODO: implement
         osDelay(100);
     }
 }
@@ -159,8 +121,6 @@ static HAL_StatusTypeDef CAN_TransmitMessage(CAN_Message_t *msg)
     return HAL_ERROR;
 }
 
-
-
 /* CAN Interrupt Callbacks ------------------------------------------------*/
 
 /**
@@ -181,14 +141,11 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         msg.priority = 0;  // RX messages don't have priority
         msg.timestamp = osKernelGetTickCount();
         
-        // // Ignore all messages not for this module
-        // if (CAN_IsMessageForThisModule(msg.id)) {
-        //         // Add to RX queue (from ISR context)
-        //     if (osMessageQueuePut(CANRxQueueHandle, &msg, 0, 0) != osOK) {
-        //         can_stats.rx_queue_full_count++;
-        //     }
-        // }
-        // HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+        // TODO: implement message filtering
+        // Add to RX queue (from ISR context)
+        if (osMessageQueuePut(BMS_CAN_RxQueueHandle, &msg, 0, 0) != osOK) {
+            can_stats.rx_queue_full_count++;
+        }
     }
 }
 
@@ -202,24 +159,21 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
     CAN_RxHeaderTypeDef RxHeader;
     CAN_Message_t msg;
 
-
-    // // Get message from FIFO
-    // if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, msg.data) == HAL_OK) {
-    //     // Store message details (all messages are extended ID)
-    //     msg.id = RxHeader.ExtId;
-    //     msg.length = RxHeader.DLC;
-    //     msg.priority = 0;  // RX messages don't have priority
-    //     msg.timestamp = osKernelGetTickCount();
+    // Get message from FIFO
+    if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, msg.data) == HAL_OK) {
+        // Store message details (all messages are extended ID)
+        msg.id = RxHeader.ExtId;
+        msg.length = RxHeader.DLC;
+        msg.priority = 0;  // RX messages don't have priority
+        msg.timestamp = osKernelGetTickCount();
         
-    //     // Ignore all messages not for this module
-    //     if (CAN_IsMessageForThisModule(msg.id)) {
-    //         // Add to RX queue (from ISR context)
-    //         if (osMessageQueuePut(CAN_BMS_RxQueueHandle, &msg, 0, 0) != osOK) {
-    //             can_stats.rx_queue_full_count++;
-    //         }
-    //     }
+        // TODO: implement message filtering
+        // Add to RX queue (from ISR context)
+        if (osMessageQueuePut(BMS_CAN_RxQueueHandle, &msg, 0, 0) != osOK) {
+            can_stats.rx_queue_full_count++;
+        }
 
-    // }
+    }
 }
 
 
