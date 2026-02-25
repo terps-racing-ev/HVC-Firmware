@@ -109,6 +109,8 @@ void LV_CAN_ManagerTask(void *argument){
     }
 }
 
+
+// TODO: move this into LV_CAN_ManagerTask
 /**
   * @brief  SPI Int pending callback
   * @param  argument: Not used
@@ -135,6 +137,7 @@ void SPI_CAN_Int_CallbackTask(void *argument)
         }
         
         while (CANSPI_Receive(&rx_msg)) {
+            // TODO: check if message is for HVC
             if (osMessageQueuePut(LV_CAN_TxQueueHandle, &rx_msg, 0, 0) != osOK) {
                 lv_can_stats.rx_queue_full_count++;
             }
