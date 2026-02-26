@@ -123,6 +123,8 @@ void LV_CAN_ManagerTask(void *argument){
     }
 }
 
+
+// TODO: move this into LV_CAN_ManagerTask
 /**
   * @brief  Send CAN message on LV bus (non-blocking, queues message)
   * @param  id: CAN message ID (29-bit extended, max 0x1FFFFFFF)
