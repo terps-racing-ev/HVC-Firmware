@@ -10,7 +10,7 @@ endif
 
 TEST_DIR := tests
 BUILD_DIR := $(TEST_DIR)/build
-INCLUDE_DIRS := -I$(TEST_DIR)/include -ICore/Inc -ICore/Src
+INCLUDE_DIRS := -I$(TEST_DIR)/include -ICore/Inc -ICore/Inc/Managers -ICore/Inc/Drivers -ICore/Inc/Data -ICore/Inc/Config -ICore/Src
 
 UNITY_SOURCES := $(TEST_DIR)/unity.c $(TEST_DIR)/cmock.c
 COMMON_SOURCES := $(TEST_DIR)/stubs.c
@@ -37,7 +37,7 @@ test: $(TESTS)
 
 # Override module source for a test with MODULE_SOURCE_<name>
 define module_source
-$(if $(MODULE_SOURCE_$(1)),$(MODULE_SOURCE_$(1)),Core/Src/$(1).c)
+$(if $(MODULE_SOURCE_$(1)),$(MODULE_SOURCE_$(1)),Core/Src/Managers/$(1).c)
 endef
 
 define make_test_rule

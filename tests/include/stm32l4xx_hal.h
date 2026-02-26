@@ -89,6 +89,7 @@ typedef enum {
 #define ADC_OFFSET_NONE 0U
 #define ADC_CHANNEL_5 5U
 #define ADC_CHANNEL_6 6U
+#define ADC_CHANNEL_8 8U
 
 HAL_StatusTypeDef HAL_CAN_ActivateNotification(CAN_HandleTypeDef *hcan, uint32_t active_it);
 HAL_StatusTypeDef HAL_CAN_AddTxMessage(CAN_HandleTypeDef *hcan, CAN_TxHeaderTypeDef *pHeader, uint8_t *pData, uint32_t *pTxMailbox);

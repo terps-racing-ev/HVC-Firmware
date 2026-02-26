@@ -13,13 +13,13 @@ void tearDown(void)
 
 void test_IO_Manager_Init_success(void)
 {
-    osMutexId_t results[5] = { (void*)0x1, (void*)0x2, (void*)0x3, (void*)0x4, (void*)0x5 };
-    Test_SetMutexNewResults(results, 5);
+    osMutexId_t results[7] = { (void*)0x1, (void*)0x2, (void*)0x3, (void*)0x4, (void*)0x5, (void*)0x6, (void*)0x7 };
+    Test_SetMutexNewResults(results, 7);
     Test_SetAdcStartResult(HAL_OK);
     Test_SetCompStartResult(HAL_OK);
 
     TEST_ASSERT_EQUAL(HAL_OK, IO_Manager_Init());
-    TEST_ASSERT_EQUAL_UINT32(5, Test_GetMutexNewCallCount());
+    TEST_ASSERT_EQUAL_UINT32(7, Test_GetMutexNewCallCount());
 
     TEST_ASSERT_EQUAL_PTR(results[0], sdc.mutex);
     TEST_ASSERT_EQUAL_UINT8(0, sdc.value);
@@ -40,6 +40,14 @@ void test_IO_Manager_Init_success(void)
     TEST_ASSERT_EQUAL_PTR(results[4], cs_high.mutex);
     TEST_ASSERT_EQUAL_UINT16(0, cs_high.value);
     TEST_ASSERT_EQUAL_UINT32(0, cs_high.last_updated);
+
+    TEST_ASSERT_EQUAL_PTR(results[5], therm.mutex);
+    TEST_ASSERT_EQUAL_UINT16(0, therm.value);
+    TEST_ASSERT_EQUAL_UINT32(0, therm.last_updated);
+
+    TEST_ASSERT_EQUAL_PTR(results[6], ref_temp.mutex);
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 0.0f, ref_temp.value);
+    TEST_ASSERT_EQUAL_UINT32(0, ref_temp.last_updated);
 }
 
 void test_IO_Manager_Init_adc_start_fail(void)
@@ -61,13 +69,13 @@ void test_IO_Manager_Init_comp_start_fail(void)
 
 void test_IO_Manager_Init_mutex_fail(void)
 {
-    osMutexId_t results[4] = { (void*)0x1, (void*)0x2, NULL, (void*)0x4 };
-    Test_SetMutexNewResults(results, 4);
+    osMutexId_t results[7] = { (void*)0x1, (void*)0x2, (void*)0x3, (void*)0x4, (void*)0x5, NULL, (void*)0x7 };
+    Test_SetMutexNewResults(results, 7);
     Test_SetAdcStartResult(HAL_OK);
     Test_SetCompStartResult(HAL_OK);
 
     TEST_ASSERT_EQUAL(HAL_ERROR, IO_Manager_Init());
-    TEST_ASSERT_EQUAL_UINT32(3, Test_GetMutexNewCallCount());
+    TEST_ASSERT_EQUAL_UINT32(6, Test_GetMutexNewCallCount());
 }
 
 int main(void)

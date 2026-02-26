@@ -75,11 +75,18 @@ endif
 ######################################
 # C sources
 C_SOURCES =  \
-Core/Src/CANSPI.c \
-Core/Src/can_manager.c \
+Core/Src/Data/can.c \
+Core/Src/Data/io.c \
+Core/Src/Data/state.c \
+Core/Src/Drivers/mcp2515.c \
+Core/Src/Drivers/spi_can.c \
+Core/Src/Drivers/therm.c \
+Core/Src/Managers/bms_can_manager.c \
+Core/Src/Managers/io_manager.c \
+Core/Src/Managers/lv_can_manager.c \
+Core/Src/Managers/state_manager.c \
 Core/Src/freertos.c \
 Core/Src/main.c \
-Core/Src/mcp2515.c \
 Core/Src/stm32l4xx_hal_msp.c \
 Core/Src/stm32l4xx_hal_timebase_tim.c \
 Core/Src/stm32l4xx_it.c \
@@ -216,6 +223,10 @@ AS_INCLUDES = \
 # C includes
 C_INCLUDES =  \
 -ICore/Inc \
+-ICore/Inc/Config \
+-ICore/Inc/Data \
+-ICore/Inc/Drivers \
+-ICore/Inc/Managers \
 -IDrivers/CMSIS/Device/ST/STM32L4xx/Include \
 -IDrivers/CMSIS/Include \
 -IDrivers/STM32L4xx_HAL_Driver/Inc \

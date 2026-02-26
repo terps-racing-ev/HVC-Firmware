@@ -1,8 +1,8 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : lv_can_manager.h
-  * @brief          : LV CAN bus manager header
+  * @file           : io_manager.h
+  * @brief          : IO manager header
   ******************************************************************************
   * @attention
   *
@@ -17,35 +17,25 @@
   */
 /* USER CODE END Header */
 
-#ifndef __LV_CAN_MANAGER_H
-#define __KV_CAN_MANAGER_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "stm32l4xx_hal.h"
-#include "cmsis_os.h"
+#include "io.h"
 #include "can.h"
+#include "state.h"
+#include "can_id.h"
+#include "therm.h"
+#include "stm32l4xx_hal.h"
+
+#define IO_UPDATE_FREQ_MS 10
 
 /**
-  * @brief  Initialize LV CAN manager
+  * @brief  Initialize IO manager
   * @retval HAL_StatusTypeDef
   */
-HAL_StatusTypeDef LV_CAN_Manager_Init(void);
+HAL_StatusTypeDef IO_Manager_Init(void);
 
 /**
-  * @brief  Main LV CAN manager task
+  * @brief  Main IO manager task
   * @param  argument: Not used
   * @retval None
   */
-void LV_CAN_ManagerTask(void *argument);
-
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* __LV_CAN_MANAGER_H */
+void IO_ManagerTask(void *argument);

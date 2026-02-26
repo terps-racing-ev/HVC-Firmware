@@ -1,5 +1,8 @@
 #include "test_stubs.h"
 #include "spi_can.h"
+#include "io.h"
+#include "therm.h"
+#include "can.h"
 
 static osMessageQueueId_t queue_new_results[8];
 static size_t queue_new_result_count = 0;
@@ -290,4 +293,57 @@ uint8_t CANSPI_Transmit(uCAN_MSG *tempCanMsg)
 uint8_t CANSPI_isRxErrorPassive(void)
 {
     return 0;
+}
+
+bool CANSPI_Initialize(void)
+{
+    return true;
+}
+
+uint8_t IO_GetDigitalIO(DigitalIO *dio)
+{
+    return dio->value;
+}
+
+uint16_t IO_GetAnalogIO(AnalogIO *aio)
+{
+    return aio->value;
+}
+
+float IO_GetTemp(Temp *t)
+{
+    return t->value;
+}
+
+void IO_SetDigitalIO(DigitalIO *dio, uint16_t value)
+{
+    dio->value = (uint8_t)value;
+    dio->last_updated = osKernelGetTickCount();
+}
+
+void IO_SetAnalogIO(AnalogIO *aio, uint16_t value)
+{
+    aio->value = value;
+    aio->last_updated = osKernelGetTickCount();
+}
+
+void IO_SetTemp(Temp *t, float value)
+{
+    t->value = value;
+    t->last_updated = osKernelGetTickCount();
+}
+
+float Therm_CalculateTemperature(uint16_t adc_value)
+{
+    (void)adc_value;
+    return 25.0f;
+}
+
+__attribute__((weak)) HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
+{
+    (void)id;
+    (void)data;
+    (void)length;
+    (void)priority;
+    return HAL_OK;
 }

@@ -22,8 +22,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "can_manager.h"
-#include "mcp2515.h"
+#include "bms_can_manager.h"
+#include "lv_can_manager.h"
+#include "io_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,31 +54,53 @@ CRC_HandleTypeDef hcrc;
 
 SPI_HandleTypeDef hspi1;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 128 * 4,
+/* Definitions for LED_Blink */
+osThreadId_t LED_BlinkHandle;
+uint32_t LED_BlinkBuffer[ 128 ];
+osStaticThreadDef_t LED_BlinkControlBlock;
+const osThreadAttr_t LED_Blink_attributes = {
+  .name = "LED_Blink",
+  .cb_mem = &LED_BlinkControlBlock,
+  .cb_size = sizeof(LED_BlinkControlBlock),
+  .stack_mem = &LED_BlinkBuffer[0],
+  .stack_size = sizeof(LED_BlinkBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for SPIIntCallback */
-osThreadId_t SPIIntCallbackHandle;
-const osThreadAttr_t SPIIntCallback_attributes = {
-  .name = "SPIIntCallback",
-  .stack_size = 128 * 4,
+/* Definitions for LV_CANManagerTa */
+osThreadId_t LV_CANManagerTaHandle;
+uint32_t LV_CANManagerTaskBuffer[ 128 ];
+osStaticThreadDef_t LV_CANManagerTaskControlBlock;
+const osThreadAttr_t LV_CANManagerTa_attributes = {
+  .name = "LV_CANManagerTa",
+  .cb_mem = &LV_CANManagerTaskControlBlock,
+  .cb_size = sizeof(LV_CANManagerTaskControlBlock),
+  .stack_mem = &LV_CANManagerTaskBuffer[0],
+  .stack_size = sizeof(LV_CANManagerTaskBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for CANManagerTask */
-osThreadId_t CANManagerTaskHandle;
-uint32_t CANManagerTaskBuffer[ 128 ];
-osStaticThreadDef_t CANManagerTaskControlBlock;
-const osThreadAttr_t CANManagerTask_attributes = {
-  .name = "CANManagerTask",
-  .cb_mem = &CANManagerTaskControlBlock,
-  .cb_size = sizeof(CANManagerTaskControlBlock),
-  .stack_mem = &CANManagerTaskBuffer[0],
-  .stack_size = sizeof(CANManagerTaskBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+/* Definitions for BMS_CAN_Manager */
+osThreadId_t BMS_CAN_ManagerHandle;
+uint32_t BMS_CANManagerTBuffer[ 128 ];
+osStaticThreadDef_t BMS_CANManagerTControlBlock;
+const osThreadAttr_t BMS_CAN_Manager_attributes = {
+  .name = "BMS_CAN_Manager",
+  .cb_mem = &BMS_CANManagerTControlBlock,
+  .cb_size = sizeof(BMS_CANManagerTControlBlock),
+  .stack_mem = &BMS_CANManagerTBuffer[0],
+  .stack_size = sizeof(BMS_CANManagerTBuffer),
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for IO_Manager */
+osThreadId_t IO_ManagerHandle;
+uint32_t IO_ManagerTaskBuffer[ 128 ];
+osStaticThreadDef_t IO_ManagerTaskControlBlock;
+const osThreadAttr_t IO_Manager_attributes = {
+  .name = "IO_Manager",
+  .cb_mem = &IO_ManagerTaskControlBlock,
+  .cb_size = sizeof(IO_ManagerTaskControlBlock),
+  .stack_mem = &IO_ManagerTaskBuffer[0],
+  .stack_size = sizeof(IO_ManagerTaskBuffer),
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* Definitions for CAN */
 osMutexId_t CANHandle;
@@ -96,9 +119,10 @@ static void MX_CRC_Init(void);
 static void MX_COMP2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI1_Init(void);
-void StartDefaultTask(void *argument);
-extern void SPICANIntCallbackTask(void *argument);
-extern void CAN_ManagerTask(void *argument);
+void LED_BlinkTask(void *argument);
+extern void LV_CAN_ManagerTask(void *argument);
+extern void BMS_CAN_ManagerTask(void *argument);
+extern void IO_ManagerTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -145,10 +169,6 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
     // Start CAN peripheral
-  if (HAL_CAN_Start(&hcan1) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -171,23 +191,32 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
 
-    // Initialize CAN Manager (creates TX and RX message queues)
-  if (CAN_Manager_Init() != HAL_OK)
-  {
+  if (BMS_CAN_Manager_Init() != HAL_OK) {
+    Error_Handler();
+  }
+
+  if (LV_CAN_Manager_Init() != HAL_OK) {
+    Error_Handler();
+  }
+
+  if (IO_Manager_Init() != HAL_OK) {
     Error_Handler();
   }
 
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of LED_Blink */
+  LED_BlinkHandle = osThreadNew(LED_BlinkTask, NULL, &LED_Blink_attributes);
 
-  /* creation of SPIIntCallback */
-  SPIIntCallbackHandle = osThreadNew(SPICANIntCallbackTask, NULL, &SPIIntCallback_attributes);
+  /* creation of LV_CANManagerTa */
+  LV_CANManagerTaHandle = osThreadNew(LV_CAN_ManagerTask, NULL, &LV_CANManagerTa_attributes);
 
-  /* creation of CANManagerTask */
-  CANManagerTaskHandle = osThreadNew(CAN_ManagerTask, NULL, &CANManagerTask_attributes);
+  /* creation of BMS_CAN_Manager */
+  BMS_CAN_ManagerHandle = osThreadNew(BMS_CAN_ManagerTask, NULL, &BMS_CAN_Manager_attributes);
+
+  /* creation of IO_Manager */
+  IO_ManagerHandle = osThreadNew(IO_ManagerTask, NULL, &IO_Manager_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -509,12 +538,6 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD3_Pin|BMS_Fault_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : Therm_Pin */
-  GPIO_InitStruct.Pin = Therm_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(Therm_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pin : SPI1_CS_Pin */
   GPIO_InitStruct.Pin = SPI1_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -565,38 +588,23 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-/**
-  * @brief  Interrupt callback for SPI CAN Int pin
-  * @param  GPIO_PIN: specifies GPIO pin connected to EXTI line
-  * @retval None
-  */
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_PIN) 
-{
-    if (GPIO_PIN == LV_CAN_INT_Pin) {
-      // Handle CAN interrupt
-      // Set flag so we don't do SPI transactions in ISR
-      osThreadFlagsSet(SPIIntCallbackHandle, 0x0001);
-    }
-}
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_LED_BlinkTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Task for blinking LED
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+/* USER CODE END Header_LED_BlinkTask */
+void LED_BlinkTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
-  /* Infinite loop */
   for(;;)
   {
-    HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin));
-    osDelay(50);
+    HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+    osDelay(500);
   }
   /* USER CODE END 5 */
 }
@@ -632,9 +640,43 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+  
+  // Set output to faulted
+  HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
+
+  CAN_TxHeaderTypeDef TxHeader;
+  uint32_t TxMailbox;
+  uint8_t data[8];
+  
+  // Configure TX header for extended ID
+  TxHeader.ExtId = CAN_ID_ERRORED_PANIC;
+  TxHeader.StdId = 0;
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.IDE = CAN_ID_EXT;
+  TxHeader.DLC = 0;
+  TxHeader.TransmitGlobalTime = DISABLE;
+  
+  uCAN_MSG spi_message = {0};
+
+  spi_message.frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
+  spi_message.frame.id = CAN_ID_ERRORED_PANIC;
+  spi_message.frame.dlc = 0;
+
   while (1)
   {
-    // TODO: Try sending error message on SPI CAN bus after checking its 
+    // Send message on all CAN buses
+    // TODO: Send state
+    
+    if (bms_can_initialized) {
+      HAL_CAN_AddTxMessage(&hcan1, &TxHeader, data, &TxMailbox);
+    }
+
+    if (lv_can_initialized) {
+      CANSPI_Transmit(&spi_message);
+    }
+
+    // TODO: delay that doesn't use HAL_DELAY?
+    for (int i = 0; i < 1000; i++) {};
   }
   /* USER CODE END Error_Handler_Debug */
 }
