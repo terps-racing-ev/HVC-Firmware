@@ -24,6 +24,8 @@
 static osMessageQueueId_t BMS_CAN_RxQueueHandle = NULL;
 static osMessageQueueId_t BMS_CAN_TxQueueHandle = NULL;
 static CAN_Statistics_t bms_can_stats = {0};
+// Compute array length
+const uint8_t DispatchRegisterCount = sizeof(DispatchRegister)/sizeof(CanDispatchEntry);
 
 /* Private function prototypes -----------------------------------------------*/
 static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg);
@@ -130,7 +132,23 @@ HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length
 }
 
 static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
-    // TODO: implement RX processing
+    // Prefetch for faster loops
+    uint32_t msg_id = msg->id;
+    BMS_Message decoded_msg;
+    
+    if (BMS_ECHO_MSGS) {
+        LV_CAN_SendMessage(msg->id, msg->data, msg->length, msg->priority);
+    }
+
+    // TODO: unit test
+    for (int i = 0; i < DispatchRegisterCount; i++) {
+        if (msg_id == DispatchRegister[i].can_id) {
+            if (DispatchRegister[i].decode(msg, &decoded_msg)) {
+                DispatchRegister[i].handle(&decoded_msg);
+            }
+        }
+    }
+
     return HAL_OK;
 }
 

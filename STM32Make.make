@@ -78,9 +78,11 @@ C_SOURCES =  \
 Core/Src/Data/can.c \
 Core/Src/Data/io.c \
 Core/Src/Data/state.c \
+Core/Src/Drivers/bmb.c \
 Core/Src/Drivers/mcp2515.c \
 Core/Src/Drivers/spi_can.c \
 Core/Src/Drivers/therm.c \
+Core/Src/Managers/acc_manager.c \
 Core/Src/Managers/bms_can_manager.c \
 Core/Src/Managers/io_manager.c \
 Core/Src/Managers/lv_can_manager.c \

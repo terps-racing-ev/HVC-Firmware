@@ -19,15 +19,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "lv_can_manager.h"
-#include "spi_can.h"
 
 /* Private variables ---------------------------------------------------------*/
-static osMessageQueueId_t LV_CAN_RxQueueHandle = NULL;
 static osMessageQueueId_t LV_CAN_TxQueueHandle = NULL;
 static CAN_Statistics_t lv_can_stats = {0};
 
 /* Private function prototypes -----------------------------------------------*/
-static HAL_StatusTypeDef LV_CAN_ProcessRXMessage(CAN_Message_t *msg);
 static HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg);
 
 /* Public variables ---------------------------------------------------------*/
@@ -47,15 +44,6 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
         NULL
     );
     if (LV_CAN_TxQueueHandle == NULL) {
-        return HAL_ERROR;
-    }
-
-    LV_CAN_RxQueueHandle = osMessageQueueNew(
-        CAN_RX_QUEUE_SIZE,
-        sizeof(uCAN_MSG),
-        NULL
-    );
-    if (LV_CAN_RxQueueHandle == NULL) {
         return HAL_ERROR;
     }
 
@@ -80,9 +68,7 @@ void LV_CAN_ManagerTask(void *argument){
 
   for (;;) {
 
-    while (osMessageQueueGet(LV_CAN_RxQueueHandle, &rx_message, NULL, 0) == osOK) {
-        lv_can_stats.rx_message_count++;
-    }
+    // No RX on LV bus
 
     while (osMessageQueueGet(LV_CAN_TxQueueHandle, &tx_message, NULL, 0) == osOK) {
         // Converting to uCAN_MSG type

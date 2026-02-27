@@ -51,6 +51,4 @@ extern AnalogIO therm;
 
 extern Temp ref_temp;
 
-
-
 #endif /* IO_H */
