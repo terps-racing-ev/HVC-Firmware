@@ -28,6 +28,8 @@ bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out)
     cmd = REMOVE_MODULE_ID(in->id);
     if (cmd != BMB_CAN_TEMP_SUMMARY) return false;
 
+    out->module = MODULE_ID(in->id);
+
     // First 16 bits = min_temp (deci-degC), next 16 bits = max_temp (deci-degC)
     uint16_t min_raw = (uint16_t)in->data[0] | ((uint16_t)in->data[1] << 8);
     uint16_t max_raw = (uint16_t)in->data[2] | ((uint16_t)in->data[3] << 8);
@@ -39,6 +41,9 @@ bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out)
 }
 
 bool HandleCellTempSummary(const BMS_Message *msg){
-    // Todo: implement
+    if (msg == NULL) return false;
+    if (msg->module >= 6U) return false;
+
+    Acc_SetCellTemps(acc[msg->module], &msg->cell_temps);
     return true;
 }
