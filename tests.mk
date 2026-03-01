@@ -13,7 +13,7 @@ BUILD_DIR := $(TEST_DIR)/build
 INCLUDE_DIRS := -I$(TEST_DIR)/include -ICore/Inc -ICore/Inc/Managers -ICore/Inc/Drivers -ICore/Inc/Data -ICore/Inc/Config -ICore/Src
 
 UNITY_SOURCES := $(TEST_DIR)/unity.c $(TEST_DIR)/cmock.c
-COMMON_SOURCES := $(TEST_DIR)/bms_stubs.c
+COMMON_SOURCES := $(TEST_DIR)/bms_can_stubs.c
 
 REQUESTED_TESTS := $(filter-out test clean,$(MAKECMDGOALS))
 ifneq ($(REQUESTED_TESTS),)

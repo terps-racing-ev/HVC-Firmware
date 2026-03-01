@@ -19,6 +19,16 @@ void test_BMS_CAN_ProcessRXMessage_module0(void)
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
     TEST_ASSERT_EQUAL_FLOAT(45.6, acc[0]->cell_temps.temp_min);
     TEST_ASSERT_EQUAL_FLOAT(47.8, acc[0]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
 }
 
 void test_BMS_CAN_ProcessRXMessage_module1(void)
@@ -30,6 +40,16 @@ void test_BMS_CAN_ProcessRXMessage_module1(void)
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
     TEST_ASSERT_EQUAL_FLOAT(45.6, acc[1]->cell_temps.temp_min);
     TEST_ASSERT_EQUAL_FLOAT(47.8, acc[1]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
 }
 
 void test_BMS_CAN_ProcessRXMessage_module2(void)
@@ -41,6 +61,16 @@ void test_BMS_CAN_ProcessRXMessage_module2(void)
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
     TEST_ASSERT_EQUAL_FLOAT(45.6, acc[2]->cell_temps.temp_min);
     TEST_ASSERT_EQUAL_FLOAT(47.8, acc[2]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
 }
 
 void test_BMS_CAN_ProcessRXMessage_module3(void)
@@ -52,6 +82,16 @@ void test_BMS_CAN_ProcessRXMessage_module3(void)
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
     TEST_ASSERT_EQUAL_FLOAT(45.6, acc[3]->cell_temps.temp_min);
     TEST_ASSERT_EQUAL_FLOAT(47.8, acc[3]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
 }
 
 void test_BMS_CAN_ProcessRXMessage_module4(void)
@@ -63,6 +103,16 @@ void test_BMS_CAN_ProcessRXMessage_module4(void)
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
     TEST_ASSERT_EQUAL_FLOAT(45.6, acc[4]->cell_temps.temp_min);
     TEST_ASSERT_EQUAL_FLOAT(47.8, acc[4]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
 }
 
 void test_BMS_CAN_ProcessRXMessage_module5(void)
@@ -74,6 +124,16 @@ void test_BMS_CAN_ProcessRXMessage_module5(void)
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
     TEST_ASSERT_EQUAL_FLOAT(45.6, acc[5]->cell_temps.temp_min);
     TEST_ASSERT_EQUAL_FLOAT(47.8, acc[5]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
+    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
 }
 
 void test_BMS_CAN_ProcessRXMessage_temp1(void)
