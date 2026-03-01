@@ -136,13 +136,15 @@ static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
     uint32_t msg_id = msg->id;
     BMS_Message decoded_msg;
     
+    /*
     if (BMS_ECHO_MSGS) {
         LV_CAN_SendMessage(msg->id, msg->data, msg->length, msg->priority);
     }
+    */
 
     // TODO: unit test
     for (int i = 0; i < DispatchRegisterCount; i++) {
-        if (msg_id == DispatchRegister[i].can_id) {
+        if ((msg_id & 0xFFF) == (DispatchRegister[i].can_id & 0xFFF)) { // match only bits 0-11 to allow for module offset
             if (DispatchRegister[i].decode(msg, &decoded_msg)) {
                 DispatchRegister[i].handle(&decoded_msg);
             }

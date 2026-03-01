@@ -75,6 +75,7 @@ endif
 ######################################
 # C sources
 C_SOURCES =  \
+Core/Src/Data/acc.c \
 Core/Src/Data/can.c \
 Core/Src/Data/io.c \
 Core/Src/Data/state.c \

@@ -13,9 +13,9 @@ typedef struct {
 } CellVoltages;
 
 typedef struct {
-    uint16_t temp_min;
-    uint16_t temp_max;
-    uint16_t temp_avg; // Lots of work for HVC if BMB's don't
+    float temp_min;
+    float temp_max;
+    float temp_avg; // Lots of work for HVC if BMB's don't
 } CellTemps;
 
 typedef struct {
@@ -31,7 +31,14 @@ typedef struct {
     AmbientTemps amb_temps;
 } Acc_Module;
 
-// Todo: add getters and setters
+// Getters and setters
+void Acc_GetCellVoltages(Acc_Module *acc, CellVoltages *cell_voltages);
+void Acc_GetCellTemps(Acc_Module *acc, CellTemps *cell_temps);
+void Acc_GetAmbientTemps(Acc_Module *acc, AmbientTemps *amb_temps);
+void Acc_SetCellVoltages(Acc_Module *acc, const CellVoltages *cell_voltages);
+void Acc_SetCellTemps(Acc_Module *acc, const CellTemps *cell_temps);
+void Acc_SetAmbientTemps(Acc_Module *acc, const AmbientTemps *amb_temps);
+
 extern Acc_Module module_0;
 extern Acc_Module module_1;
 extern Acc_Module module_2;

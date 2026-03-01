@@ -18,7 +18,7 @@
 /* USER CODE END Header */
 
 #ifndef __LV_CAN_MANAGER_H
-#define __KV_CAN_MANAGER_H
+#define __LV_CAN_MANAGER_H
 
 #ifdef __cplusplus
 extern "C" {

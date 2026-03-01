@@ -102,6 +102,8 @@ uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *hadc);
 
 HAL_StatusTypeDef HAL_COMP_Start(COMP_HandleTypeDef *hcomp);
 
+HAL_StatusTypeDef HAL_CAN_Start(CAN_HandleTypeDef *hcan);
+
 void HAL_GPIO_TogglePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState PinState);
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
