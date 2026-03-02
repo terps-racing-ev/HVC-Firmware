@@ -111,7 +111,7 @@ HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length
     CAN_Message_t msg;
     
     // Validate inputs (29-bit extended ID max)
-    if (length > 8 || id > 0x1FFFFFFF || data == NULL || length < 0 || priority < 0) {
+    if (length > 8 || id > 0x1FFFFFFF || data == NULL) {
         return HAL_ERROR;
     }
     
@@ -136,18 +136,18 @@ static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
     uint32_t msg_id = msg->id;
     BMS_Message decoded_msg;
     
-    /*
+    if (msg == NULL){
+        return HAL_ERROR;
+    }
+
     if (BMS_ECHO_MSGS) {
         LV_CAN_SendMessage(msg->id, msg->data, msg->length, msg->priority);
     }
-    */
 
-    // TODO: unit test
     for (int i = 0; i < DispatchRegisterCount; i++) {
-        if ((msg_id & 0xFFF) == (DispatchRegister[i].can_id & 0xFFF)) { // match only bits 0-11 to allow for module offset
-            if (DispatchRegister[i].decode(msg, &decoded_msg)) {
-                DispatchRegister[i].handle(&decoded_msg);
-            }
+        // Decode returns true only when message is for it
+        if (DispatchRegister[i].decode(msg, &decoded_msg)) {
+            DispatchRegister[i].handle(&decoded_msg);
         }
     }
 
@@ -166,6 +166,10 @@ static HAL_StatusTypeDef BMS_CAN_TransmitMessage(CAN_Message_t *msg)
     HAL_StatusTypeDef status;
     uint8_t retry_count = 0;
     
+    if (msg == NULL) {
+        return HAL_ERROR;
+    }
+
     // Configure TX header for extended ID
     TxHeader.ExtId = msg->id;
     TxHeader.StdId = 0;
