@@ -15,6 +15,9 @@ INCLUDE_DIRS := -I$(TEST_DIR)/include -ICore/Inc -ICore/Inc/Managers -ICore/Inc/
 UNITY_SOURCES := $(TEST_DIR)/unity.c $(TEST_DIR)/cmock.c
 COMMON_SOURCES := $(TEST_DIR)/stubs.c
 
+# Override common sources for specific tests with COMMON_SOURCES_<name>
+COMMON_SOURCES_bms_can_manager := $(TEST_DIR)/bms_can_stubs.c
+
 REQUESTED_TESTS := $(filter-out test clean,$(MAKECMDGOALS))
 ifneq ($(REQUESTED_TESTS),)
 TESTS := $(REQUESTED_TESTS)
@@ -40,11 +43,15 @@ define module_source
 $(if $(MODULE_SOURCE_$(1)),$(MODULE_SOURCE_$(1)),Core/Src/Managers/$(1).c)
 endef
 
+define common_sources
+$(if $(COMMON_SOURCES_$(1)),$(COMMON_SOURCES_$(1)),$(COMMON_SOURCES))
+endef
+
 define make_test_rule
 $(1): $(BUILD_DIR)/test_$(1)$(EXE)
 	$(BUILD_DIR)/test_$(1)$(EXE)
 
-$(BUILD_DIR)/test_$(1)$(EXE): $(UNITY_SOURCES) $(COMMON_SOURCES) $(TEST_DIR)/test_$(1).c $(call module_source,$(1))
+$(BUILD_DIR)/test_$(1)$(EXE): $(UNITY_SOURCES) $(call common_sources,$(1)) $(TEST_DIR)/test_$(1).c $(call module_source,$(1))
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) $$^ -o $$@
 endef
