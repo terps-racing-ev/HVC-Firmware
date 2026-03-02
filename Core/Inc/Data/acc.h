@@ -2,13 +2,14 @@
 #define __ACC_H
 
 #include "cmsis_os.h"
-// TODO: move all the defined stuff to types.h or something
+// TODO: move all the defined stuff to types.h or something (?)
 #include "io.h"
 
 typedef struct {
     uint16_t volt_min;
-    uint8_t volt_min_id; // Cell ID for min
     uint16_t volt_max;
+    uint8_t volt_min_cell_id;
+    uint8_t volt_max_cell_id;
     uint16_t volt_avg;
 } CellVoltages;
 
@@ -31,13 +32,8 @@ typedef struct {
     AmbientTemps amb_temps;
 } Acc_Module;
 
-// Getters and setters
-void Acc_GetCellVoltages(Acc_Module *acc, CellVoltages *cell_voltages);
-void Acc_GetCellTemps(Acc_Module *acc, CellTemps *cell_temps);
-void Acc_GetAmbientTemps(Acc_Module *acc, AmbientTemps *amb_temps);
-void Acc_SetCellVoltages(Acc_Module *acc, const CellVoltages *cell_voltages);
-void Acc_SetCellTemps(Acc_Module *acc, const CellTemps *cell_temps);
-void Acc_SetAmbientTemps(Acc_Module *acc, const AmbientTemps *amb_temps);
+/* Public variables  --------------------------------------------------------*/
+#define NUM_ACC_MODULES 6
 
 extern Acc_Module module_0;
 extern Acc_Module module_1;
@@ -46,6 +42,72 @@ extern Acc_Module module_3;
 extern Acc_Module module_4;
 extern Acc_Module module_5;
 
-extern Acc_Module *acc[6];
+extern Acc_Module *acc[NUM_ACC_MODULES];
+
+/* Getters  --------------------------------------------------------*/
+/**
+ * @brief Gets the last heartbeat timestamp for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param last_update Output pointer for the heartbeat timestamp.
+ */
+void Acc_GetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update);
+
+/**
+ * @brief Gets all cell voltages for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param cell_voltages Output pointer for cell voltage data.
+ */
+void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages);
+
+/**
+ * @brief Gets all cell temperatures for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param cell_temps Output pointer for cell temperature data.
+ */
+void Acc_GetCellTemps(Acc_Module *module, CellTemps *cell_temps);
+
+/**
+ * @brief Gets all ambient temperatures for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param amb_temps Output pointer for ambient temperature data.
+ */
+void Acc_GetAmbientTemps(Acc_Module *module, AmbientTemps *amb_temps);
+
+/* Setters  --------------------------------------------------------*/
+/**
+ * @brief Sets the last heartbeat timestamp for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param last_update Input pointer containing the heartbeat timestamp.
+ */
+void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update);
+
+/**
+ * @brief Sets all cell voltages for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param cell_voltages Input pointer containing cell voltage data.
+ */
+void Acc_SetCellVoltages(Acc_Module *module, const CellVoltages *cell_voltages);
+
+/**
+ * @brief Sets all cell temperatures for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param cell_temps Input pointer containing cell temperature data.
+ */
+void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps);
+
+/**
+ * @brief Sets all ambient temperatures for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param amb_temps Input pointer containing ambient temperature data.
+ */
+void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps);
 
 #endif
