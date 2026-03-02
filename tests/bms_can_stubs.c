@@ -178,3 +178,12 @@ osStatus_t osMutexRelease(osMutexId_t mutex_id)
     (void)mutex_id;
     return osOK;
 }
+
+HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
+{
+    (void)id;
+    (void)data;
+    (void)length;
+    (void)priority;
+    return HAL_OK;
+}
