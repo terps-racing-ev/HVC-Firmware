@@ -21,8 +21,14 @@
 #include "io.h"
 #include "can.h"
 #include "can_id.h"
+#include "acc.h"
 
 #define STATE_REFRESH_FREQ_MS 10
+
+#define MODULE_TIMEOUT_CUTOFF_TICKS 100
+
+#define CHECK_MODULE_TIMEOUT 1
+#define CHECK_REF_OVERTEMP 1
 
 /**
   * @brief  Initialize State manager

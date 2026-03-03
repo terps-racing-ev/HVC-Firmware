@@ -3,6 +3,9 @@
 #include "io.h"
 #include "therm.h"
 #include "can.h"
+#include "state.h"
+#include "acc.h"
+#include <string.h>
 
 static osMessageQueueId_t queue_new_results[8];
 static size_t queue_new_result_count = 0;
@@ -26,10 +29,30 @@ static HAL_StatusTypeDef adc_start_result = HAL_OK;
 static HAL_StatusTypeDef comp_start_result = HAL_OK;
 
 static uint32_t kernel_tick = 0;
+static uint32_t delay_call_count = 0;
+static uint32_t last_delay_ticks = 0;
 
 CAN_HandleTypeDef hcan1;
 ADC_HandleTypeDef hadc1;
 COMP_HandleTypeDef hcomp2;
+
+/* Weak defaults for cross-module symbols used by manager unit tests. */
+__attribute__((weak)) uint8_t io_initialized = 0;
+__attribute__((weak)) uint8_t bms_can_initialized = 0;
+__attribute__((weak)) uint8_t lv_can_initialized = 0;
+__attribute__((weak)) Temp ref_temp = {0};
+__attribute__((weak)) Acc_Module *acc[NUM_ACC_MODULES] = {0};
+
+static State test_state = PRE_INIT;
+static Acc_Module test_acc_modules[NUM_ACC_MODULES];
+static uint32_t bms_can_send_call_count = 0;
+static uint32_t lv_can_send_call_count = 0;
+static uint32_t bms_can_last_id = 0;
+static uint8_t bms_can_last_data[8] = {0};
+static uint8_t bms_can_last_len = 0;
+static uint32_t lv_can_last_id = 0;
+static uint8_t lv_can_last_data[8] = {0};
+static uint8_t lv_can_last_len = 0;
 
 void Test_Stubs_Reset(void)
 {
@@ -48,6 +71,27 @@ void Test_Stubs_Reset(void)
     adc_start_result = HAL_OK;
     comp_start_result = HAL_OK;
     kernel_tick = 0;
+    delay_call_count = 0;
+    last_delay_ticks = 0;
+    bms_can_send_call_count = 0;
+    lv_can_send_call_count = 0;
+    bms_can_last_id = 0;
+    bms_can_last_len = 0;
+    lv_can_last_id = 0;
+    lv_can_last_len = 0;
+    memset(bms_can_last_data, 0, sizeof(bms_can_last_data));
+    memset(lv_can_last_data, 0, sizeof(lv_can_last_data));
+    io_initialized = 0;
+    bms_can_initialized = 0;
+    lv_can_initialized = 0;
+    memset(&ref_temp, 0, sizeof(ref_temp));
+    test_state = PRE_INIT;
+
+    for (size_t i = 0; i < NUM_ACC_MODULES; i++) {
+        memset(&test_acc_modules[i], 0, sizeof(Acc_Module));
+        test_acc_modules[i].mutex = (osMutexId_t)0x1;
+        acc[i] = &test_acc_modules[i];
+    }
 }
 
 void Test_SetQueueNewResults(const osMessageQueueId_t *results, size_t count)
@@ -176,7 +220,8 @@ osStatus_t osMutexRelease(osMutexId_t mutex_id)
 
 void osDelay(uint32_t ticks)
 {
-    (void)ticks;
+    delay_call_count++;
+    last_delay_ticks = ticks;
 }
 
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)
@@ -341,9 +386,101 @@ float Therm_CalculateTemperature(uint16_t adc_value)
 
 __attribute__((weak)) HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
 {
-    (void)id;
-    (void)data;
-    (void)length;
     (void)priority;
+    lv_can_send_call_count++;
+    lv_can_last_id = id;
+    lv_can_last_len = length;
+    if (data != NULL) {
+        uint8_t copy_len = (length > 8U) ? 8U : length;
+        memcpy(lv_can_last_data, data, copy_len);
+    }
     return HAL_OK;
+}
+
+__attribute__((weak)) HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
+{
+    (void)priority;
+    bms_can_send_call_count++;
+    bms_can_last_id = id;
+    bms_can_last_len = length;
+    if (data != NULL) {
+        uint8_t copy_len = (length > 8U) ? 8U : length;
+        memcpy(bms_can_last_data, data, copy_len);
+    }
+    return HAL_OK;
+}
+
+__attribute__((weak)) void State_GetState(State *state)
+{
+    if (state != NULL) {
+        *state = test_state;
+    }
+}
+
+__attribute__((weak)) void State_SetState(State new_state)
+{
+    test_state = new_state;
+}
+
+__attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module *module, uint32_t *last_update)
+{
+    if ((module != NULL) && (last_update != NULL)) {
+        *last_update = module->heartbeat_last_update;
+    }
+}
+
+uint32_t Test_GetBmsCanSendCallCount(void)
+{
+    return bms_can_send_call_count;
+}
+
+uint32_t Test_GetLvCanSendCallCount(void)
+{
+    return lv_can_send_call_count;
+}
+
+uint32_t Test_GetLastBmsCanId(void)
+{
+    return bms_can_last_id;
+}
+
+uint8_t Test_GetLastBmsCanLength(void)
+{
+    return bms_can_last_len;
+}
+
+uint8_t Test_GetLastBmsCanDataByte(uint8_t index)
+{
+    if (index < 8U) {
+        return bms_can_last_data[index];
+    }
+    return 0U;
+}
+
+uint32_t Test_GetLastLvCanId(void)
+{
+    return lv_can_last_id;
+}
+
+uint8_t Test_GetLastLvCanLength(void)
+{
+    return lv_can_last_len;
+}
+
+uint8_t Test_GetLastLvCanDataByte(uint8_t index)
+{
+    if (index < 8U) {
+        return lv_can_last_data[index];
+    }
+    return 0U;
+}
+
+uint32_t Test_GetDelayCallCount(void)
+{
+    return delay_call_count;
+}
+
+uint32_t Test_GetLastDelayTicks(void)
+{
+    return last_delay_ticks;
 }

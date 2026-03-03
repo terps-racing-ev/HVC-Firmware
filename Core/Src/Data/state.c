@@ -1,13 +1,9 @@
 #include "state.h"
 
-State State_GetState(){
-    State state;
-
+void State_GetState(State *state){
     osMutexAcquire(bms_state.mutex, osWaitForever);
-    state = bms_state.state;
+    *state = bms_state.state;
     osMutexRelease(bms_state.mutex);
-
-    return state;
 }
 
 
