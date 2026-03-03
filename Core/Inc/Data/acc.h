@@ -6,11 +6,11 @@
 #include "io.h"
 
 typedef struct {
-    float volt_min;
-    float volt_max;
+    uint16_t volt_min;
+    uint16_t volt_max;
     uint8_t volt_min_cell_id;
     uint8_t volt_max_cell_id;
-    float volt_avg;
+    uint16_t volt_avg;
 } CellVoltages;
 
 typedef struct {

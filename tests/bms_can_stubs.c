@@ -133,13 +133,13 @@ bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out){
     Acc_GetCellVoltages(acc[out->module], &out->cell_voltages);
 
     uint8_t cell_id[CELLS_PER_VOLTAGE_MSG];
-    float volt[CELLS_PER_VOLTAGE_MSG];
+    uint16_t volt[CELLS_PER_VOLTAGE_MSG];
     
     for (int i = 0; i < CELLS_PER_VOLTAGE_MSG; i++) {
         // cells 1-3 in message 0, 4-6 in message 1, 7-9 in message 2, and so on
-        cell_id[i] = 3 * VOLTAGE_MSG_INDEX(cmd) + i + 1;
+        cell_id[i] = CELLS_PER_VOLTAGE_MSG * VOLTAGE_MSG_INDEX(cmd) + i + 1;
         // first voltage in bytes 0-1, second voltage in bytes 2-3, third voltage in bytes 4-5 (mV)
-        volt[i] = (float)((uint16_t)in->data[2 * i] | ((uint16_t)in->data[2 * i + 1] << 8)) / 1000.0f;
+        volt[i] = (uint16_t)in->data[2 * i] | ((uint16_t)in->data[2 * i + 1] << 8);
         
         if ((out->cell_voltages.volt_min == 0) || (volt[i] < out->cell_voltages.volt_min)) {
             out->cell_voltages.volt_min_cell_id = cell_id[i];
@@ -160,7 +160,6 @@ bool HandleCellVoltages(const BMS_Message *msg){
     Acc_SetCellVoltages(acc[msg->module], &msg->cell_voltages);
 
     return true;
-
 }
 
 bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out){

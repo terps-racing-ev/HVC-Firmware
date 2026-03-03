@@ -239,18 +239,18 @@ void test_BMS_CAN_ProcessRXMessage_heartbeat(void)
 
 void test_BMS_CAN_ProcessRXMessage_voltages(void)
 {
-    CAN_Message_t msg0 = {0x08F00200, {0x18, 0x10, 0xDE, 0x0D, 0x82, 0x0F, 0x00, 0x00}, 6, 2, 0x0}; // 4.12, 3.55, 3.97
-    CAN_Message_t msg1 = {0x08F00201, {0x86, 0x10, 0x96, 0x0F, 0x1C, 0x11, 0x00, 0x00}, 6, 2, 0x0}; // 4.23, 3.99, 4.38
-    CAN_Message_t msg2 = {0x08F00202, {0x32, 0x0F, 0x54, 0x10, 0xA0, 0x0F, 0x00, 0x00}, 6, 2, 0x0}; // 3.89, 4.18, 4.00  
+    CAN_Message_t msg0 = {0x08F00200, {0x18, 0x10, 0xDE, 0x0D, 0x82, 0x0F, 0x00, 0x00}, 6, 2, 0x0}; // 4120, 3550, 3970
+    CAN_Message_t msg1 = {0x08F00201, {0x86, 0x10, 0x96, 0x0F, 0x1C, 0x11, 0x00, 0x00}, 6, 2, 0x0}; // 4230, 3990, 4380
+    CAN_Message_t msg2 = {0x08F00202, {0x32, 0x0F, 0x54, 0x10, 0xA0, 0x0F, 0x00, 0x00}, 6, 2, 0x0}; // 3890, 4180, 4000  
 
     Test_BMS_CAN_ProcessRXMessage(&msg0);
     Test_BMS_CAN_ProcessRXMessage(&msg1);
     Test_BMS_CAN_ProcessRXMessage(&msg2);
 
     TEST_ASSERT_EQUAL_UINT32(3, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(3.55, acc[0]->cell_voltages.volt_min);
+    TEST_ASSERT_EQUAL_UINT16(3550, acc[0]->cell_voltages.volt_min);
     TEST_ASSERT_EQUAL_UINT8(2, acc[0]->cell_voltages.volt_min_cell_id);
-    TEST_ASSERT_EQUAL_FLOAT(4.38, acc[0]->cell_voltages.volt_max);
+    TEST_ASSERT_EQUAL_UINT16(4380, acc[0]->cell_voltages.volt_max);
     TEST_ASSERT_EQUAL_UINT8(6, acc[0]->cell_voltages.volt_max_cell_id);
 
 }
