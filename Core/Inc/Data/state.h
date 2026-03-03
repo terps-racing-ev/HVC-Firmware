@@ -8,6 +8,7 @@ typedef enum {
     OK,
     ERRORED,
     ERRORED_REF_OVER_TEMP, // Add more errored states for better debugging
+    ERRORED_MODULE_TIMEOUT
 } State;
 
 typedef struct {
@@ -22,7 +23,7 @@ extern uint8_t lv_can_initialized;
 extern uint8_t bms_can_initialized;
 extern uint8_t io_initialized;
 
-State State_GetState();
+void State_GetState(State *state);
 void State_SetState(State new_state);
 
 #endif /* __STATE_H */

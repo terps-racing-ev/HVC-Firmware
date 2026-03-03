@@ -24,4 +24,15 @@ void Test_SetKernelTick(uint32_t tick);
 void Test_SetAdcStartResult(HAL_StatusTypeDef result);
 void Test_SetCompStartResult(HAL_StatusTypeDef result);
 
+uint32_t Test_GetBmsCanSendCallCount(void);
+uint32_t Test_GetLvCanSendCallCount(void);
+uint32_t Test_GetLastBmsCanId(void);
+uint8_t Test_GetLastBmsCanLength(void);
+uint8_t Test_GetLastBmsCanDataByte(uint8_t index);
+uint32_t Test_GetLastLvCanId(void);
+uint8_t Test_GetLastLvCanLength(void);
+uint8_t Test_GetLastLvCanDataByte(uint8_t index);
+uint32_t Test_GetDelayCallCount(void);
+uint32_t Test_GetLastDelayTicks(void);
+
 #endif /* TEST_STUBS_H */

@@ -24,6 +24,7 @@ Locked_State bms_state = {0};
 
 /* Private functions ---------------------------------------------------------*/
 static void _State_PackCanMessage(State state, uint8_t *data, uint8_t *length);
+static State _State_Transition(void);
 
 /**
   * @brief  Initialize State manager
@@ -48,36 +49,10 @@ HAL_StatusTypeDef State_Manager_Init(void) {
   */
 void State_ManagerTask(void *argument) {
     // TODO: Implement state machine
-    State curr_state;
     uint8_t data[8];
     uint8_t length;
-
-    osMutexAcquire(bms_state.mutex, osWaitForever);
-    curr_state = bms_state.state;
-    osMutexRelease(bms_state.mutex);
-
-    switch (curr_state) {
-        case PRE_INIT:
-            //Check if everything else is initialized
-            if (io_initialized && bms_can_initialized && lv_can_initialized) {
-                State_SetState(OK);
-            }
-            break;
-        case OK:
-            // Ref overtemp
-            float temp = IO_GetTemp(&ref_temp);
-            if (temp > 60.0f) {
-                State_SetState(ERRORED_REF_OVER_TEMP);
-            }
-
-            // Todo: check module timeouts
-
-            // Todo: 
-            break;
-        default:
-            // Errored state
-            break;
-    }
+    
+    State curr_state = _State_Transition();
 
     _State_PackCanMessage(curr_state, data, &length);
     BMS_CAN_SendMessage(
@@ -94,6 +69,54 @@ void State_ManagerTask(void *argument) {
     );
 
     osDelay(STATE_REFRESH_FREQ_MS);
+}
+
+/**
+ * @brief Evaluate one state-machine transition cycle and return the current state.
+ * @retval State Current state for this task cycle.
+ */
+static State _State_Transition(void) {
+    State curr_state;
+    uint32_t now  = osKernelGetTickCount();
+    uint32_t last_heartbeat;
+
+    State_GetState(&curr_state);
+
+    switch (curr_state) {
+        case PRE_INIT:
+            //Check if everything else is initialized
+            if (io_initialized && bms_can_initialized && lv_can_initialized) {
+                State_SetState(OK);
+            }
+            break;
+        case OK:
+            // TODO: Create error tracking variable
+            // Right now, only overtemp will be logged (by state)
+            // if both overtemp and timeout errors occur
+            if (CHECK_REF_OVERTEMP) {
+                // Ref overtemp
+                float temp = IO_GetTemp(&ref_temp);
+                if (temp > 60.0f) {
+                    State_SetState(ERRORED_REF_OVER_TEMP);
+                }
+            }
+            if (CHECK_MODULE_TIMEOUT) {
+                // Heartbeat
+                for (int i = 0; i < NUM_ACC_MODULES; i++) {
+                    Acc_GetHeartbeatLastUpdate(acc[i], &last_heartbeat);
+                    if (now-last_heartbeat > MODULE_TIMEOUT_CUTOFF_TICKS) {
+                        State_SetState(ERRORED_MODULE_TIMEOUT);
+                    }
+                }
+            }
+            // Todo: 
+            break;
+        default:
+            // Errored state
+            break;
+    }
+    
+    return curr_state;
 }
 
 static void _State_PackCanMessage(State state, uint8_t *data, uint8_t *length)
