@@ -146,10 +146,10 @@ bool CANSPI_Initialize(void)
   MCP2515_WriteByte(MCP2515_CNF1, 0x00);
   
   /* 1 1 100(5tq) 101(6tq) */  
-  MCP2515_WriteByte(MCP2515_CNF2, 0xA0); // E5 at 16Mhz
+  MCP2515_WriteByte(MCP2515_CNF2, 0xE5); // E5 at 16Mhz
   
   /* 1 0 000 011(4tq) */  
-  MCP2515_WriteByte(MCP2515_CNF3, 0x04); // 83 at 16Mhz
+  MCP2515_WriteByte(MCP2515_CNF3, 0x83); // 83 at 16Mhz
   
   /* Normal */
   if(!MCP2515_SetNormalMode()){
