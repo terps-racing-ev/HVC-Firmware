@@ -20,8 +20,8 @@ typedef struct {
 } CellTemps;
 
 typedef struct {
-    uint16_t amb_temp_1;
-    uint16_t amb_temp_2;
+    float amb_temp_1;
+    float amb_temp_2;
 } AmbientTemps;
 
 typedef struct {
@@ -84,7 +84,7 @@ void Acc_GetAmbientTemps(Acc_Module *module, AmbientTemps *amb_temps);
  * @param module Pointer to the ACC module instance.
  * @param last_update Input pointer containing the heartbeat timestamp.
  */
-void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update);
+void Acc_SetHeartbeatLastUpdate(Acc_Module *module, const uint32_t* last_update);
 
 /**
  * @brief Sets all cell voltages for the ACC module.

@@ -54,13 +54,15 @@ typedef bool (*DecodeFunc)(const CAN_Message_t *in, BMS_Message *out);
 typedef bool (*HandleFunc)(const BMS_Message *msg);
 
 typedef struct {
-    uint32_t can_id;
     DecodeFunc decode;
     HandleFunc handle;
 } CanDispatchEntry;
 
 static const CanDispatchEntry DispatchRegister[] = {
-    {BMB_CAN_TEMP_SUMMARY, DecodeCellTempSummary, HandleCellTempSummary}
+    {DecodeCellTempSummary, HandleCellTempSummary},
+    {DecodeAmbientTemps, HandleAmbientTemps},
+    {DecodeCellVoltages, HandleCellVoltages},
+    {DecodeBMSHeartbeat, HandleBMSHeartbeat}
     
 };
 extern const uint8_t DispatchRegisterCount; // Computed at runtime in bms can manager

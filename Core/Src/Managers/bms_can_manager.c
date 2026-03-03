@@ -132,8 +132,6 @@ HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length
 }
 
 static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
-    // Prefetch for faster loops
-    uint32_t msg_id = msg->id;
     BMS_Message decoded_msg;
     
     if (msg == NULL){

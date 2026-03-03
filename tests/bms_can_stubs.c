@@ -37,22 +37,21 @@ uint32_t Test_GetDispatchRegisterMatchCount(void)
 }
 
 HAL_StatusTypeDef Test_BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
-    // Prefetch for faster loops
-    uint32_t msg_id = msg->id;
     BMS_Message decoded_msg;
     
-    /*
+    if (msg == NULL){
+        return HAL_ERROR;
+    }
+
     if (BMS_ECHO_MSGS) {
         LV_CAN_SendMessage(msg->id, msg->data, msg->length, msg->priority);
     }
-    */
 
     for (int i = 0; i < DispatchRegisterCount; i++) {
-        if ((msg_id & 0xFFF) == (DispatchRegister[i].can_id & 0xFFF)) { // match only bits 0-11 to allow for module offset
+        // Decode returns true only when message is for it
+        if (DispatchRegister[i].decode(msg, &decoded_msg)) {
             dispatch_register_match_count++;
-            if (DispatchRegister[i].decode(msg, &decoded_msg)) {
-                DispatchRegister[i].handle(&decoded_msg);
-            }
+            DispatchRegister[i].handle(&decoded_msg);
         }
     }
 
@@ -90,12 +89,162 @@ bool HandleCellTempSummary(const BMS_Message *msg){
     return true;
 }
 
-void Acc_SetCellTemps(Acc_Module *acc, const CellTemps *cell_temps){
-    osMutexAcquire(acc->mutex, osWaitForever);
-    if (cell_temps != NULL) {
-        acc->cell_temps = *cell_temps;
+bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message *out){
+    uint32_t cmd;
+
+    if (in == NULL || out == NULL) return false;
+    if (in->length < 8U) return false;
+    
+    cmd = REMOVE_MODULE_ID(in->id);
+    if (cmd != BMB_CAN_TEMP + AMBIENT_TEMP_MSG_INDEX) return false;
+
+    out->module = MODULE_ID(in->id);
+   
+    // Ambient temp 1 in bytes 4-5, ambient temp 2 in bytes 6-7 (0.1C)
+    int16_t temp_1_raw = (int16_t)((uint16_t)in->data[4] | ((uint16_t)in->data[5] << 8));
+    int16_t temp_2_raw = (int16_t)((uint16_t)in->data[6] | ((uint16_t)in->data[7] << 8));
+
+    out->amb_temps.amb_temp_1 = ((float)temp_1_raw) / 10.0f;
+    out->amb_temps.amb_temp_2 = ((float)temp_2_raw) / 10.0f;
+
+    return true;
+}
+
+bool HandleAmbientTemps(const BMS_Message *msg){
+    if (msg == NULL) return false;
+    if (msg->module >= 6U) return false;
+    
+    Acc_SetAmbientTemps(acc[msg->module], &msg->amb_temps);
+
+    return true;
+}
+
+bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out){
+    uint32_t cmd;
+
+    if (in == NULL || out == NULL) return false;
+    if (in->length < 6U) return false;
+    
+    cmd = REMOVE_MODULE_ID(in->id);
+    if (REMOVE_VOLTAGE_MSG_INDEX(cmd) != BMB_CAN_VOLTAGE_BASE) return false;
+
+    out->module = MODULE_ID(in->id);
+   
+    Acc_GetCellVoltages(acc[out->module], &out->cell_voltages);
+
+    uint8_t cell_id[CELLS_PER_VOLTAGE_MSG];
+    uint16_t volt[CELLS_PER_VOLTAGE_MSG];
+    
+    for (int i = 0; i < CELLS_PER_VOLTAGE_MSG; i++) {
+        // cells 1-3 in message 0, 4-6 in message 1, 7-9 in message 2, and so on
+        cell_id[i] = CELLS_PER_VOLTAGE_MSG * VOLTAGE_MSG_INDEX(cmd) + i + 1;
+        // first voltage in bytes 0-1, second voltage in bytes 2-3, third voltage in bytes 4-5 (mV)
+        volt[i] = (uint16_t)in->data[2 * i] | ((uint16_t)in->data[2 * i + 1] << 8);
+        
+        if ((out->cell_voltages.volt_min == 0) || (volt[i] < out->cell_voltages.volt_min)) {
+            out->cell_voltages.volt_min_cell_id = cell_id[i];
+            out->cell_voltages.volt_min = volt[i];
+        } else if (volt[i] > out->cell_voltages.volt_max) {
+            out->cell_voltages.volt_max_cell_id = cell_id[i];
+            out->cell_voltages.volt_max = volt[i];
+        }
     }
-    osMutexRelease(acc->mutex);
+
+    return true;
+}
+
+bool HandleCellVoltages(const BMS_Message *msg){
+    if (msg == NULL) return false;
+    if (msg->module >= 6U) return false;
+    
+    Acc_SetCellVoltages(acc[msg->module], &msg->cell_voltages);
+
+    return true;
+}
+
+bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out){
+    uint32_t cmd;
+
+    if (in == NULL || out == NULL) return false;
+    if (in->length < 8U) return false;
+    
+    cmd = REMOVE_MODULE_ID(in->id);
+    if (cmd != BMB_CAN_BMS_HEARTBEAT) return false;
+
+    out->module = MODULE_ID(in->id);
+   
+    out->heartbeat_timestamp = in->timestamp;
+
+    return true;
+}
+
+bool HandleBMSHeartbeat(const BMS_Message *msg){
+    if (msg == NULL) return false;
+    if (msg->module >= 6U) return false;
+    
+    Acc_SetHeartbeatLastUpdate(acc[msg->module], &msg->heartbeat_timestamp);
+
+    return true;
+}
+
+void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages){
+    if (module == NULL) {
+        return;
+    }
+
+    osMutexAcquire(module->mutex, osWaitForever);
+    if (cell_voltages != NULL) {
+        *cell_voltages = module->cell_voltages;
+    }
+    osMutexRelease(module->mutex);
+}
+
+void Acc_SetHeartbeatLastUpdate(Acc_Module *module, const uint32_t* last_update){
+    if (module == NULL) {
+        return;
+    }
+
+    osMutexAcquire(module->mutex, osWaitForever);
+    if (last_update != NULL) {
+        module->heartbeat_last_update = *last_update;
+    }
+    osMutexRelease(module->mutex);
+}
+
+void Acc_SetCellVoltages(Acc_Module *module, const CellVoltages *cell_voltages){
+    if (module == NULL) {
+        return;
+    }
+
+    osMutexAcquire(module->mutex, osWaitForever);
+    if (cell_voltages != NULL) {
+        module->cell_voltages = *cell_voltages;
+    }
+    osMutexRelease(module->mutex);
+}
+
+void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps){
+    if (module == NULL) {
+        return;
+    }
+
+    osMutexAcquire(module->mutex, osWaitForever);
+    if (cell_temps != NULL) {
+        module->cell_temps = *cell_temps;
+    }
+    osMutexRelease(module->mutex);
+}
+
+void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps){
+    if (module == NULL) {
+        return;
+    }
+
+    osMutexAcquire(module->mutex, osWaitForever);
+    if (amb_temps != NULL) {
+        module->amb_temps = *amb_temps;
+    }
+    osMutexRelease(module->mutex);
 }
 
 osMessageQueueId_t osMessageQueueNew(uint32_t msg_count, uint32_t msg_size, const void *attr)
