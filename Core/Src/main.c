@@ -158,6 +158,9 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+  // Updating vector table for application when using CAN bootloader
+  SCB->VTOR = 0x08008000U;  /* APPLICATION_ADDRESS */
+  
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -261,9 +264,8 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
@@ -290,7 +292,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_HSI48, RCC_MCODIV_4);
+  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_HSI, RCC_MCODIV_1);
 }
 
 /**
@@ -438,7 +440,6 @@ static void MX_COMP2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN COMP2_Init 2 */
-  HAL_COMP_Start(&hcomp2);
   /* USER CODE END COMP2_Init 2 */
 
 }
@@ -509,9 +510,6 @@ static void MX_SPI1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SPI1_Init 2 */
-    if (!CANSPI_Initialize()) {
-      Error_Handler();
-    }
   /* USER CODE END SPI1_Init 2 */
 
 }
