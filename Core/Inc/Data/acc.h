@@ -6,11 +6,11 @@
 #include "io.h"
 
 typedef struct {
-    uint16_t volt_min;
-    uint16_t volt_max;
+    float volt_min;
+    float volt_max;
     uint8_t volt_min_cell_id;
     uint8_t volt_max_cell_id;
-    uint16_t volt_avg;
+    float volt_avg;
 } CellVoltages;
 
 typedef struct {
@@ -20,8 +20,8 @@ typedef struct {
 } CellTemps;
 
 typedef struct {
-    uint16_t amb_temp_1;
-    uint16_t amb_temp_2;
+    float amb_temp_1;
+    float amb_temp_2;
 } AmbientTemps;
 
 typedef struct {
@@ -84,7 +84,7 @@ void Acc_GetAmbientTemps(Acc_Module *module, AmbientTemps *amb_temps);
  * @param module Pointer to the ACC module instance.
  * @param last_update Input pointer containing the heartbeat timestamp.
  */
-void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update);
+void Acc_SetHeartbeatLastUpdate(Acc_Module *module, const uint32_t* last_update);
 
 /**
  * @brief Sets all cell voltages for the ACC module.
