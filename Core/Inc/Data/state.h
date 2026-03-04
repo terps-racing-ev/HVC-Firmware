@@ -28,7 +28,7 @@ typedef enum {
     BMS_ERR_REF_OVER_TEMP = 0,
     BMS_ERR_MODULE_TIMEOUT,
 
-    // Keep this last to # errors added
+    // Keep this last so = # errors added
     BMS_ERR_COUNT 
 } ErrorBit;
 
