@@ -45,6 +45,7 @@ __attribute__((weak)) Acc_Module *acc[NUM_ACC_MODULES] = {0};
 
 static State test_state = PRE_INIT;
 static Acc_Module test_acc_modules[NUM_ACC_MODULES];
+static ErrorMask test_error_mask = 0;
 static uint32_t bms_can_send_call_count = 0;
 static uint32_t lv_can_send_call_count = 0;
 static uint32_t bms_can_last_id = 0;
@@ -86,6 +87,7 @@ void Test_Stubs_Reset(void)
     lv_can_initialized = 0;
     memset(&ref_temp, 0, sizeof(ref_temp));
     test_state = PRE_INIT;
+    test_error_mask = 0;
 
     for (size_t i = 0; i < NUM_ACC_MODULES; i++) {
         memset(&test_acc_modules[i], 0, sizeof(Acc_Module));
@@ -420,6 +422,18 @@ __attribute__((weak)) void State_GetState(State *state)
 __attribute__((weak)) void State_SetState(State new_state)
 {
     test_state = new_state;
+}
+
+__attribute__((weak)) void State_SetErrorMask(ErrorMask mask)
+{
+    test_error_mask = mask;
+}
+
+__attribute__((weak)) void State_GetErrorMask(ErrorMask *mask)
+{
+    if (mask != NULL) {
+        *mask = test_error_mask;
+    }
 }
 
 __attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module *module, uint32_t *last_update)

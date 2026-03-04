@@ -1,14 +1,84 @@
 #include "state.h"
 
-void State_GetState(State *state){
-    osMutexAcquire(bms_state.mutex, osWaitForever);
+/* Public variables ---------------------------------------------------------*/
+Locked_ErrorMask bms_errors = {0};
+
+/**
+ * @brief  Read the current high-level BMS state.
+ * @param  state: Output pointer for the current state.
+ * @retval None
+ */
+void State_GetState(State *state)
+{
+    if (state == NULL) {
+        return;
+    }
+
+    if (bms_state.mutex != NULL) {
+        osMutexAcquire(bms_state.mutex, osWaitForever);
+    }
+
     *state = bms_state.state;
-    osMutexRelease(bms_state.mutex);
+
+    if (bms_state.mutex != NULL) {
+        osMutexRelease(bms_state.mutex);
+    }
 }
 
+/**
+ * @brief  Write the high-level BMS state.
+ * @param  new_state: New state value.
+ * @retval None
+ */
+void State_SetState(State new_state)
+{
+    if (bms_state.mutex != NULL) {
+        osMutexAcquire(bms_state.mutex, osWaitForever);
+    }
 
-void State_SetState(State new_state) {
-    osMutexAcquire(bms_state.mutex, osWaitForever);
     bms_state.state = new_state;
-    osMutexRelease(bms_state.mutex);
+
+    if (bms_state.mutex != NULL) {
+        osMutexRelease(bms_state.mutex);
+    }
+}
+
+/**
+ * @brief  Overwrite the full error bit mask.
+ * @param  mask: Full error mask value.
+ * @retval None
+ */
+void State_SetErrorMask(ErrorMask mask)
+{
+    if (bms_errors.mutex != NULL) {
+        osMutexAcquire(bms_errors.mutex, osWaitForever);
+    }
+
+    bms_errors.error_mask = mask;
+
+    if (bms_errors.mutex != NULL) {
+        osMutexRelease(bms_errors.mutex);
+    }
+}
+
+/**
+ * @brief  Read the full error bit mask.
+ * @param  mask: Output pointer for the full error mask.
+ * @retval None
+ */
+void State_GetErrorMask(ErrorMask *mask)
+{
+    if (mask == NULL) {
+        return;
+    }
+
+    if (bms_errors.mutex != NULL) {
+        osMutexAcquire(bms_errors.mutex, osWaitForever);
+    }
+
+    *mask = bms_errors.error_mask;
+
+    if (bms_errors.mutex != NULL) {
+        osMutexRelease(bms_errors.mutex);
+    }
 }

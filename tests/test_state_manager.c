@@ -18,9 +18,17 @@ static void AssertCurrentState(State expected)
     TEST_ASSERT_EQUAL(expected, current);
 }
 
+static void AssertErrorMask(ErrorMask expected)
+{
+    ErrorMask mask = 0U;
+    State_GetErrorMask(&mask);
+    TEST_ASSERT_EQUAL_HEX32(expected, mask);
+}
+
 void setUp(void) {
     Test_Stubs_Reset();
     State_SetState(PRE_INIT);
+    State_SetErrorMask(0U);
 }
 
 void tearDown(void){
@@ -44,6 +52,7 @@ void test_STATE_MANAGER_Transition_pre_init_stays_when_dependencies_missing(void
     State_ManagerTask(NULL);
 
     AssertCurrentState(PRE_INIT);
+    AssertErrorMask(0U);
 }
 
 void test_STATE_MANAGER_Transition_pre_init_moves_to_ok_when_all_initialized(void)
@@ -55,6 +64,7 @@ void test_STATE_MANAGER_Transition_pre_init_moves_to_ok_when_all_initialized(voi
     State_ManagerTask(NULL);
 
     AssertCurrentState(OK);
+    AssertErrorMask(0U);
 }
 
 void test_STATE_MANAGER_Transition_ok_stays_ok_when_no_faults(void)
@@ -67,9 +77,10 @@ void test_STATE_MANAGER_Transition_ok_stays_ok_when_no_faults(void)
     State_ManagerTask(NULL);
 
     AssertCurrentState(OK);
+    AssertErrorMask(0U);
 }
 
-void test_STATE_MANAGER_Transition_ok_to_ref_overtemp_when_temp_exceeds_threshold(void)
+void test_STATE_MANAGER_Transition_ok_to_errored_when_ref_overtemp(void)
 {
     State_SetState(OK);
     Test_SetKernelTick(500);
@@ -78,10 +89,11 @@ void test_STATE_MANAGER_Transition_ok_to_ref_overtemp_when_temp_exceeds_threshol
 
     State_ManagerTask(NULL);
 
-    AssertCurrentState(ERRORED_REF_OVER_TEMP);
+    AssertCurrentState(ERRORED);
+    AssertErrorMask((ErrorMask)1U << BMS_ERR_REF_OVER_TEMP);
 }
 
-void test_STATE_MANAGER_Transition_ok_to_module_timeout_when_any_heartbeat_is_stale(void)
+void test_STATE_MANAGER_Transition_ok_to_errored_when_any_heartbeat_is_stale(void)
 {
     State_SetState(OK);
     Test_SetKernelTick(1000);
@@ -91,10 +103,11 @@ void test_STATE_MANAGER_Transition_ok_to_module_timeout_when_any_heartbeat_is_st
 
     State_ManagerTask(NULL);
 
-    AssertCurrentState(ERRORED_MODULE_TIMEOUT);
+    AssertCurrentState(ERRORED);
+    AssertErrorMask((ErrorMask)1U << BMS_ERR_MODULE_TIMEOUT);
 }
 
-void test_STATE_MANAGER_Transition_ok_both_faults_result_in_module_timeout(void)
+void test_STATE_MANAGER_Transition_ok_to_errored_when_both_faults_present(void)
 {
     State_SetState(OK);
     Test_SetKernelTick(1000);
@@ -104,7 +117,25 @@ void test_STATE_MANAGER_Transition_ok_both_faults_result_in_module_timeout(void)
 
     State_ManagerTask(NULL);
 
-    AssertCurrentState(ERRORED_MODULE_TIMEOUT);
+    AssertCurrentState(ERRORED);
+    AssertErrorMask(((ErrorMask)1U << BMS_ERR_REF_OVER_TEMP) |
+                    ((ErrorMask)1U << BMS_ERR_MODULE_TIMEOUT));
+}
+
+void test_STATE_MANAGER_Transition_errored_to_ok_when_faults_clear(void)
+{
+    State_SetState(ERRORED);
+    State_SetErrorMask(((ErrorMask)1U << BMS_ERR_REF_OVER_TEMP) |
+                       ((ErrorMask)1U << BMS_ERR_MODULE_TIMEOUT));
+
+    Test_SetKernelTick(1200);
+    ref_temp.value = 25.0f;
+    SetAllHeartbeats(1200);
+
+    State_ManagerTask(NULL);
+
+    AssertCurrentState(OK);
+    AssertErrorMask(0U);
 }
 
 void test_STATE_MANAGER_Task_sends_state_on_both_buses_and_delays(void)
@@ -135,9 +166,10 @@ int main(void)
     RUN_TEST(test_STATE_MANAGER_Transition_pre_init_stays_when_dependencies_missing);
     RUN_TEST(test_STATE_MANAGER_Transition_pre_init_moves_to_ok_when_all_initialized);
     RUN_TEST(test_STATE_MANAGER_Transition_ok_stays_ok_when_no_faults);
-    RUN_TEST(test_STATE_MANAGER_Transition_ok_to_ref_overtemp_when_temp_exceeds_threshold);
-    RUN_TEST(test_STATE_MANAGER_Transition_ok_to_module_timeout_when_any_heartbeat_is_stale);
-    RUN_TEST(test_STATE_MANAGER_Transition_ok_both_faults_result_in_module_timeout);
+    RUN_TEST(test_STATE_MANAGER_Transition_ok_to_errored_when_ref_overtemp);
+    RUN_TEST(test_STATE_MANAGER_Transition_ok_to_errored_when_any_heartbeat_is_stale);
+    RUN_TEST(test_STATE_MANAGER_Transition_ok_to_errored_when_both_faults_present);
+    RUN_TEST(test_STATE_MANAGER_Transition_errored_to_ok_when_faults_clear);
     RUN_TEST(test_STATE_MANAGER_Task_sends_state_on_both_buses_and_delays);
     return UNITY_END();
 }
