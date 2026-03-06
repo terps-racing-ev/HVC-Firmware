@@ -29,6 +29,7 @@ static HAL_StatusTypeDef adc_start_result = HAL_OK;
 static HAL_StatusTypeDef comp_start_result = HAL_OK;
 
 static uint32_t kernel_tick = 0;
+static Test_DelayHook delay_hook = NULL;
 static uint32_t delay_call_count = 0;
 static uint32_t last_delay_ticks = 0;
 
@@ -72,6 +73,7 @@ void Test_Stubs_Reset(void)
     adc_start_result = HAL_OK;
     comp_start_result = HAL_OK;
     kernel_tick = 0;
+    delay_hook = NULL;
     delay_call_count = 0;
     last_delay_ticks = 0;
     bms_can_send_call_count = 0;
@@ -153,6 +155,11 @@ void Test_SetKernelTick(uint32_t tick)
     kernel_tick = tick;
 }
 
+void Test_SetDelayHook(Test_DelayHook hook)
+{
+    delay_hook = hook;
+}
+
 void Test_SetAdcStartResult(HAL_StatusTypeDef result)
 {
     adc_start_result = result;
@@ -224,6 +231,9 @@ void osDelay(uint32_t ticks)
 {
     delay_call_count++;
     last_delay_ticks = ticks;
+    if (delay_hook != NULL) {
+        delay_hook(ticks);
+    }
 }
 
 uint32_t osThreadFlagsWait(uint32_t flags, uint32_t options, uint32_t timeout)

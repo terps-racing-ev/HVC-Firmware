@@ -54,29 +54,31 @@ void State_ManagerTask(void *argument) {
     ErrorMask errors = 0U;
     State curr_state;
 
-    State_GetState(&curr_state);
-    if (curr_state > PRE_INIT) {
-        errors = _State_CheckErrors();
+    for (;;) {
+        State_GetState(&curr_state);
+        if (curr_state > PRE_INIT) {
+            errors = _State_CheckErrors();
+        }
+        State_SetErrorMask(errors);
+        curr_state = _State_Transition(curr_state, errors);
+
+
+        _State_PackCanMessage(curr_state, data, &length);
+        BMS_CAN_SendMessage(
+            CAN_ID_STATE,
+            data,
+            length,
+            CAN_PRIORITY_CRITICAL
+        );
+        LV_CAN_SendMessage(
+            CAN_ID_STATE,
+            data,
+            length,
+            CAN_PRIORITY_CRITICAL
+        );
+
+        osDelay(STATE_REFRESH_FREQ_MS);
     }
-    State_SetErrorMask(errors);
-    curr_state = _State_Transition(curr_state, errors);
-
-
-    _State_PackCanMessage(curr_state, data, &length);
-    BMS_CAN_SendMessage(
-        CAN_ID_STATE,
-        data,
-        length,
-        CAN_PRIORITY_CRITICAL
-    );
-    LV_CAN_SendMessage(
-        CAN_ID_STATE,
-        data,
-        length,
-        CAN_PRIORITY_CRITICAL
-    );
-
-    osDelay(STATE_REFRESH_FREQ_MS);
 }
 
 /**

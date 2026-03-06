@@ -26,6 +26,7 @@
 #include "stm32l4xx_hal.h"
 
 #define IO_UPDATE_FREQ_MS 10
+#define IO_PRIORITY_UPDATE_FREQ_MS 1
 
 /**
   * @brief  Initialize IO manager
@@ -39,3 +40,10 @@ HAL_StatusTypeDef IO_Manager_Init(void);
   * @retval None
   */
 void IO_ManagerTask(void *argument);
+
+/**
+  * @brief  Main IO manager task (for priority io values). Runs at faster rate.
+  * @param  argument: Not used
+  * @retval None
+  */
+void IO_PriorityManagerTask(void *argument);

@@ -102,6 +102,30 @@ const osThreadAttr_t IO_Manager_attributes = {
   .stack_size = sizeof(IO_ManagerTaskBuffer),
   .priority = (osPriority_t) osPriorityHigh,
 };
+/* Definitions for IO_PriorityMana */
+osThreadId_t IO_PriorityManaHandle;
+uint32_t IO_PriorityManaBuffer[ 128 ];
+osStaticThreadDef_t IO_PriorityManaControlBlock;
+const osThreadAttr_t IO_PriorityMana_attributes = {
+  .name = "IO_PriorityMana",
+  .cb_mem = &IO_PriorityManaControlBlock,
+  .cb_size = sizeof(IO_PriorityManaControlBlock),
+  .stack_mem = &IO_PriorityManaBuffer[0],
+  .stack_size = sizeof(IO_PriorityManaBuffer),
+  .priority = (osPriority_t) osPriorityRealtime,
+};
+/* Definitions for State_Manager */
+osThreadId_t State_ManagerHandle;
+uint32_t State_ManagerBuffer[ 128 ];
+osStaticThreadDef_t State_ManagerControlBlock;
+const osThreadAttr_t State_Manager_attributes = {
+  .name = "State_Manager",
+  .cb_mem = &State_ManagerControlBlock,
+  .cb_size = sizeof(State_ManagerControlBlock),
+  .stack_mem = &State_ManagerBuffer[0],
+  .stack_size = sizeof(State_ManagerBuffer),
+  .priority = (osPriority_t) osPriorityRealtime,
+};
 /* Definitions for CAN */
 osMutexId_t CANHandle;
 const osMutexAttr_t CAN_attributes = {
@@ -123,6 +147,8 @@ void LED_BlinkTask(void *argument);
 extern void LV_CAN_ManagerTask(void *argument);
 extern void BMS_CAN_ManagerTask(void *argument);
 extern void IO_ManagerTask(void *argument);
+extern void IO_PriorityManagerTask(void *argument);
+extern void State_ManagerTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -220,6 +246,12 @@ int main(void)
 
   /* creation of IO_Manager */
   IO_ManagerHandle = osThreadNew(IO_ManagerTask, NULL, &IO_Manager_attributes);
+
+  /* creation of IO_PriorityMana */
+  IO_PriorityManaHandle = osThreadNew(IO_PriorityManagerTask, NULL, &IO_PriorityMana_attributes);
+
+  /* creation of State_Manager */
+  State_ManagerHandle = osThreadNew(State_ManagerTask, NULL, &State_Manager_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */

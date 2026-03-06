@@ -63,7 +63,6 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
   * @retval None
   */
 void LV_CAN_ManagerTask(void *argument){
-  CAN_Message_t rx_message;
   CAN_Message_t tx_message;
 
   for (;;) {

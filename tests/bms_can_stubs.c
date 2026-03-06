@@ -199,7 +199,7 @@ void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages){
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetHeartbeatLastUpdate(Acc_Module *module, const uint32_t* last_update){
+void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update){
     if (module == NULL) {
         return;
     }

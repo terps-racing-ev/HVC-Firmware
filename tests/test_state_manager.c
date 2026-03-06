@@ -1,6 +1,26 @@
 #include "unity.h"
 #include "test_stubs.h"
 #include "state_manager.h"
+#include <setjmp.h>
+
+static jmp_buf state_manager_loop_exit;
+
+static void ExitStateManagerTaskOnDelay(uint32_t ticks)
+{
+    (void)ticks;
+    longjmp(state_manager_loop_exit, 1);
+}
+
+static void RunStateManagerTaskSingleIteration(void)
+{
+    Test_SetDelayHook(ExitStateManagerTaskOnDelay);
+
+    if (setjmp(state_manager_loop_exit) == 0) {
+        State_ManagerTask(NULL);
+    }
+
+    Test_SetDelayHook(NULL);
+}
 
 static void SetAllHeartbeats(uint32_t tick)
 {
@@ -41,6 +61,18 @@ void test_STATE_MANAGER_Init_success(void)
 
     TEST_ASSERT_EQUAL(HAL_OK, State_Manager_Init());
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetMutexNewCallCount());
+    TEST_ASSERT_EQUAL_PTR(results[0], bms_state.mutex);
+    TEST_ASSERT_EQUAL(PRE_INIT, bms_state.state);
+}
+
+void test_STATE_MANAGER_Init_fails_when_mutex_creation_fails(void)
+{
+    osMutexId_t results[1] = {NULL};
+    Test_SetMutexNewResults(results, 1);
+
+    TEST_ASSERT_EQUAL(HAL_ERROR, State_Manager_Init());
+    TEST_ASSERT_EQUAL_UINT32(1, Test_GetMutexNewCallCount());
+    TEST_ASSERT_EQUAL_PTR(NULL, bms_state.mutex);
 }
 
 void test_STATE_MANAGER_Transition_pre_init_stays_when_dependencies_missing(void)
@@ -49,7 +81,7 @@ void test_STATE_MANAGER_Transition_pre_init_stays_when_dependencies_missing(void
     bms_can_initialized = 1;
     lv_can_initialized = 0;
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     AssertCurrentState(PRE_INIT);
     AssertErrorMask(0U);
@@ -61,7 +93,7 @@ void test_STATE_MANAGER_Transition_pre_init_moves_to_ok_when_all_initialized(voi
     bms_can_initialized = 1;
     lv_can_initialized = 1;
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     AssertCurrentState(OK);
     AssertErrorMask(0U);
@@ -74,7 +106,7 @@ void test_STATE_MANAGER_Transition_ok_stays_ok_when_no_faults(void)
     ref_temp.value = 25.0f;
     SetAllHeartbeats(950); // 50 ticks old, below cutoff
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     AssertCurrentState(OK);
     AssertErrorMask(0U);
@@ -87,7 +119,7 @@ void test_STATE_MANAGER_Transition_ok_to_errored_when_ref_overtemp(void)
     ref_temp.value = 60.1f;
     SetAllHeartbeats(500); // keep heartbeat fresh so only temp fault is active
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     AssertCurrentState(ERRORED);
     AssertErrorMask((ErrorMask)1U << BMS_ERR_REF_OVER_TEMP);
@@ -101,7 +133,7 @@ void test_STATE_MANAGER_Transition_ok_to_errored_when_any_heartbeat_is_stale(voi
     SetAllHeartbeats(950);
     acc[2]->heartbeat_last_update = 899; // 101 ticks old
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     AssertCurrentState(ERRORED);
     AssertErrorMask((ErrorMask)1U << BMS_ERR_MODULE_TIMEOUT);
@@ -115,7 +147,7 @@ void test_STATE_MANAGER_Transition_ok_to_errored_when_both_faults_present(void)
     SetAllHeartbeats(1000);
     acc[0]->heartbeat_last_update = 0;
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     AssertCurrentState(ERRORED);
     AssertErrorMask(((ErrorMask)1U << BMS_ERR_REF_OVER_TEMP) |
@@ -132,7 +164,7 @@ void test_STATE_MANAGER_Transition_errored_to_ok_when_faults_clear(void)
     ref_temp.value = 25.0f;
     SetAllHeartbeats(1200);
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     AssertCurrentState(OK);
     AssertErrorMask(0U);
@@ -145,7 +177,7 @@ void test_STATE_MANAGER_Task_sends_state_on_both_buses_and_delays(void)
     ref_temp.value = 25.0f;
     SetAllHeartbeats(50);
 
-    State_ManagerTask(NULL);
+    RunStateManagerTaskSingleIteration();
 
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetBmsCanSendCallCount());
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetLvCanSendCallCount());
@@ -163,6 +195,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_STATE_MANAGER_Init_success);
+    RUN_TEST(test_STATE_MANAGER_Init_fails_when_mutex_creation_fails);
     RUN_TEST(test_STATE_MANAGER_Transition_pre_init_stays_when_dependencies_missing);
     RUN_TEST(test_STATE_MANAGER_Transition_pre_init_moves_to_ok_when_all_initialized);
     RUN_TEST(test_STATE_MANAGER_Transition_ok_stays_ok_when_no_faults);

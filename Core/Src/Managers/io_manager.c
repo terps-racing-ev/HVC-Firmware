@@ -21,6 +21,8 @@
 #include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
 
+uint8_t io_initialized = 0;
+
 // External ADC handle (from main.c)
 extern ADC_HandleTypeDef hadc1;
 
@@ -36,9 +38,11 @@ Temp ref_temp = {0};
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
 static uint16_t _IO_ReadADCChannel(void);
-static void _IO_UpdateDigitalIO(void);
-static void _IO_UpdateAnalogIO(void);
-static void _IO_UpdateTemps(void);
+static void _IO_WriteFault(void);
+static void _IO_ReadDigitalIO(void);
+static void _IO_ReadTherm(void);
+static void _IO_ReadCurrSense(void);
+static void _IO_CalculateTemps(void);
 static void _IO_PackIOSummary(uint8_t *data, uint8_t *length);
 
 HAL_StatusTypeDef IO_Manager_Init(void){
@@ -117,6 +121,8 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     ref_temp.value = 0.0f;
     ref_temp.last_updated = 0;
 
+    io_initialized = 1;
+
     return HAL_OK;
 }
 
@@ -131,12 +137,12 @@ void IO_ManagerTask(void *argument){
     float temp;
 
     for (;;) {
-        // Read SDC + IMD, write BMS Fault
-        _IO_UpdateDigitalIO();
-        // Read Curr Senses and Therm
-        _IO_UpdateAnalogIO();
+        // Read SDC + IMD
+        _IO_ReadDigitalIO();
+        // Read Therm
+        _IO_ReadTherm();
         // Calculate and update temp values
-        _IO_UpdateTemps();
+        _IO_CalculateTemps();
 
         // TODO: Emeter temps?
 
@@ -151,6 +157,25 @@ void IO_ManagerTask(void *argument){
 
         osDelay(IO_UPDATE_FREQ_MS);
     }
+}
+
+/**
+  * @brief  Main IO manager task (for priority io values). Runs at faster rate.
+  * @param  argument: Not used
+  * @retval None
+  */
+void IO_PriorityManagerTask(void *argument) {
+
+    for (;;) {
+        // Write BMS Fault
+        _IO_WriteFault();
+        // Read Curr Senses
+        _IO_ReadCurrSense();
+
+
+        osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
+    }
+
 }
 
 /**
@@ -190,26 +215,18 @@ static uint16_t _IO_ReadADCChannel(void)
 }
 
 /**
- * @brief Read and write all digital IO values
+ * @brief Write BMS fault
  */
-static void _IO_UpdateDigitalIO(void)
-{
-    GPIO_PinState sdc_raw = HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin);
-    IO_SetDigitalIO(&sdc, sdc_raw);
-
-    GPIO_PinState imd_raw = HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin);
-    IO_SetDigitalIO(&imd, imd_raw);
-
+static void _IO_WriteFault(void) {
     uint8_t fault = IO_GetDigitalIO(&bms_fault);
     if (bms_fault.value) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
     else HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
 }
 
 /**
- * @brief Read and update all analog IO values
+ * @brief Read Curr Senses
  */
-static void _IO_UpdateAnalogIO(void)
-{
+static void _IO_ReadCurrSense(void) {
     // Read CS_LOW (Channel 5 - PA0)
     _IO_ConfigADCChannel(ADC_CHANNEL_5);
     uint16_t cs_low_raw = _IO_ReadADCChannel();
@@ -219,7 +236,25 @@ static void _IO_UpdateAnalogIO(void)
     _IO_ConfigADCChannel(ADC_CHANNEL_6);
     uint16_t cs_high_raw = _IO_ReadADCChannel();
     IO_SetAnalogIO(&cs_high, cs_high_raw);
+}
 
+/**
+ * @brief Read and write all digital IO values
+ */
+static void _IO_ReadDigitalIO(void)
+{
+    GPIO_PinState sdc_raw = HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin);
+    IO_SetDigitalIO(&sdc, sdc_raw);
+
+    GPIO_PinState imd_raw = HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin);
+    IO_SetDigitalIO(&imd, imd_raw);
+}
+
+/**
+ * @brief Read thermistor value
+ */
+static void _IO_ReadTherm(void)
+{
     _IO_ConfigADCChannel(ADC_CHANNEL_8);
     uint16_t therm_raw = _IO_ReadADCChannel();
     IO_SetAnalogIO(&therm, therm_raw);
@@ -227,6 +262,13 @@ static void _IO_UpdateAnalogIO(void)
 
 static void _IO_PackIOSummary(uint8_t *data, uint8_t *length)
 {
+    uint8_t sdc_val;
+    uint8_t imd_val;
+    uint8_t bms_fault_val;
+    uint16_t cs_low_val;
+    uint16_t cs_high_val;
+    uint16_t therm_val;
+
     if ((data == NULL) || (length == NULL)) {
         return;
     }
@@ -242,44 +284,40 @@ static void _IO_PackIOSummary(uint8_t *data, uint8_t *length)
     data[7] = 0U;
     *length = 7U;
 
+    // Read using IO data accessors
+    sdc_val = IO_GetDigitalIO(&sdc);
+    imd_val = IO_GetDigitalIO(&imd);
+    bms_fault_val = IO_GetDigitalIO(&bms_fault);
+    cs_low_val = IO_GetAnalogIO(&cs_low);
+    cs_high_val = IO_GetAnalogIO(&cs_high);
+    therm_val = IO_GetAnalogIO(&therm);
+
     // 1) sdc (bit 0)
-    osMutexAcquire(sdc.mutex, osWaitForever);
-    data[0] |= (uint8_t)(sdc.value & 0x01U);
-    osMutexRelease(sdc.mutex);
+    data[0] |= (uint8_t)(sdc_val & 0x01U);
 
     // 2) imd (bit 1)
-    osMutexAcquire(imd.mutex, osWaitForever);
-    data[0] |= (uint8_t)((imd.value & 0x01U) << 1U);
-    osMutexRelease(imd.mutex);
+    data[0] |= (uint8_t)((imd_val & 0x01U) << 1U);
 
     // 3) bms_fault (bit 2)
-    osMutexAcquire(bms_fault.mutex, osWaitForever);
-    data[0] |= (uint8_t)((bms_fault.value & 0x01U) << 2U);
-    osMutexRelease(bms_fault.mutex);
+    data[0] |= (uint8_t)((bms_fault_val & 0x01U) << 2U);
 
     // 4) cs_low (little-endian uint16_t)
-    osMutexAcquire(cs_low.mutex, osWaitForever);
-    data[1] = (uint8_t)(cs_low.value & 0xFFU);
-    data[2] = (uint8_t)((cs_low.value >> 8U) & 0xFFU);
-    osMutexRelease(cs_low.mutex);
+    data[1] = (uint8_t)(cs_low_val & 0xFFU);
+    data[2] = (uint8_t)((cs_low_val >> 8U) & 0xFFU);
 
     // 5) cs_high (little-endian uint16_t)
-    osMutexAcquire(cs_high.mutex, osWaitForever);
-    data[3] = (uint8_t)(cs_high.value & 0xFFU);
-    data[4] = (uint8_t)((cs_high.value >> 8U) & 0xFFU);
-    osMutexRelease(cs_high.mutex);
+    data[3] = (uint8_t)(cs_high_val & 0xFFU);
+    data[4] = (uint8_t)((cs_high_val >> 8U) & 0xFFU);
 
     // 6) therm (little-endian uint16_t)
-    osMutexAcquire(therm.mutex, osWaitForever);
-    data[5] = (uint8_t)(therm.value & 0xFFU);
-    data[6] = (uint8_t)((therm.value >> 8U) & 0xFFU);
-    osMutexRelease(therm.mutex);
+    data[5] = (uint8_t)(therm_val & 0xFFU);
+    data[6] = (uint8_t)((therm_val >> 8U) & 0xFFU);
 }
 
 /**
- * @brief Update temp values
+ * @brief Calculate temp values from adc
  */
-static void _IO_UpdateTemps(void) {
+static void _IO_CalculateTemps(void) {
     uint16_t therm_adc_val;
     float temp;
     
