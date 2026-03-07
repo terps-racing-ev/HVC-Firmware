@@ -30,10 +30,12 @@ extern ADC_HandleTypeDef hadc1;
 DigitalIO sdc = {0};
 DigitalIO imd = {0};
 DigitalIO bms_fault = {0};
-AnalogIO cs_low = {0};
-AnalogIO cs_high = {0};
+AnalogIO cs_low_raw = {0};
+AnalogIO cs_high_raw = {0};
 AnalogIO therm = {0};
 Temp ref_temp = {0};
+Current cs_low = {0};
+Current cs_high = {0};
 
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
@@ -75,17 +77,17 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     bms_fault.mutex = osMutexNew(&bms_fault_mutex_attr);
     if (!bms_fault.mutex) return HAL_ERROR;
 
-    const osMutexAttr_t cs_low_mutex_attr = {
-        .name = "CS_Low_Mutex"
+    const osMutexAttr_t cs_low_raw_mutex_attr = {
+        .name = "CS_Low_Raw_Mutex"
     };
-    cs_low.mutex = osMutexNew(&cs_low_mutex_attr);
-    if (!cs_low.mutex) return HAL_ERROR;
+    cs_low_raw.mutex = osMutexNew(&cs_low_raw_mutex_attr);
+    if (!cs_low_raw.mutex) return HAL_ERROR;
 
-    const osMutexAttr_t cs_high_mutex_attr = {
-        .name = "CS_High_Mutex"
+    const osMutexAttr_t cs_high_raw_mutex_attr = {
+        .name = "CS_High_Raw_Mutex"
     };
-    cs_high.mutex = osMutexNew(&cs_high_mutex_attr);
-    if (!cs_high.mutex) return HAL_ERROR;
+    cs_high_raw.mutex = osMutexNew(&cs_high_raw_mutex_attr);
+    if (!cs_high_raw.mutex) return HAL_ERROR;
 
     const osMutexAttr_t therm_mutex_attr = {
         .name = "Therm_Mutex"
@@ -99,6 +101,18 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     ref_temp.mutex = osMutexNew(&ref_temp_mutex_attr);
     if (!ref_temp.mutex) return HAL_ERROR;
 
+    const osMutexAttr_t cs_low_mutex_attr = {
+        .name = "CS_Low_Mutex"
+    };
+    cs_low.mutex = osMutexNew(&cs_low_mutex_attr);
+    if (!cs_low.mutex) return HAL_ERROR;
+
+    const osMutexAttr_t cs_high_mutex_attr = {
+        .name = "CS_High_Mutex"
+    };
+    cs_high.mutex = osMutexNew(&cs_high_mutex_attr);
+    if (!cs_high.mutex) return HAL_ERROR;
+
     // Initialize all IO values
     sdc.value = 0;
     sdc.last_updated = 0;
@@ -109,17 +123,23 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     bms_fault.value = 0;    // Start faulted
     bms_fault.last_updated = 0;
 
-    cs_low.value = 0;
-    cs_low.last_updated = 0;
+    cs_low_raw.value = 0;
+    cs_low_raw.last_updated = 0;
 
-    cs_high.value = 0;
-    cs_high.last_updated = 0;
+    cs_high_raw.value = 0;
+    cs_high_raw.last_updated = 0;
 
     therm.value = 0;
     therm.last_updated = 0;
 
     ref_temp.value = 0.0f;
     ref_temp.last_updated = 0;
+
+    cs_low.value = 0;
+    cs_low.last_updated = 0;
+
+    cs_high.value = 0;
+    cs_high.last_updated = 0;
 
     io_initialized = 1;
 
@@ -143,7 +163,6 @@ void IO_ManagerTask(void *argument){
         _IO_ReadTherm();
         // Calculate and update temp values
         _IO_CalculateTemps();
-
         // TODO: Emeter temps?
 
         // Send summary message
@@ -165,13 +184,20 @@ void IO_ManagerTask(void *argument){
   * @retval None
   */
 void IO_PriorityManagerTask(void *argument) {
+    uint32_t cs_low_val;
+    uint32_t cs_high_val;
 
     for (;;) {
         // Write BMS Fault
         _IO_WriteFault();
         // Read Curr Senses
         _IO_ReadCurrSense();
-
+        // Set cs values
+        // TODO: Make the read functions return values so don't need to get mutex again
+        cs_low_val = Curr_CalculateCurrentSense(IO_GetCurrent(&cs_low));
+        cs_high_val = Curr_CalculateCurrentSense(IO_GetCurrent(&cs_high));
+        IO_SetCurrent(&cs_low, cs_low_val);
+        IO_SetCurrent(&cs_high, cs_high_val);
 
         osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
     }
@@ -229,13 +255,13 @@ static void _IO_WriteFault(void) {
 static void _IO_ReadCurrSense(void) {
     // Read CS_LOW (Channel 5 - PA0)
     _IO_ConfigADCChannel(ADC_CHANNEL_5);
-    uint16_t cs_low_raw = _IO_ReadADCChannel();
-    IO_SetAnalogIO(&cs_low, cs_low_raw);
+    uint16_t cs_low_raw_val = _IO_ReadADCChannel();
+    IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
     
     // Read CS_HIGH (Channel 6 - PA1)
     _IO_ConfigADCChannel(ADC_CHANNEL_6);
-    uint16_t cs_high_raw = _IO_ReadADCChannel();
-    IO_SetAnalogIO(&cs_high, cs_high_raw);
+    uint16_t cs_high_raw_val = _IO_ReadADCChannel();
+    IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
 }
 
 /**
@@ -288,8 +314,8 @@ static void _IO_PackIOSummary(uint8_t *data, uint8_t *length)
     sdc_val = IO_GetDigitalIO(&sdc);
     imd_val = IO_GetDigitalIO(&imd);
     bms_fault_val = IO_GetDigitalIO(&bms_fault);
-    cs_low_val = IO_GetAnalogIO(&cs_low);
-    cs_high_val = IO_GetAnalogIO(&cs_high);
+    cs_low_val = IO_GetAnalogIO(&cs_low_raw);
+    cs_high_val = IO_GetAnalogIO(&cs_high_raw);
     therm_val = IO_GetAnalogIO(&therm);
 
     // 1) sdc (bit 0)

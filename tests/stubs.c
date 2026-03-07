@@ -7,12 +7,12 @@
 #include "acc.h"
 #include <string.h>
 
-static osMessageQueueId_t queue_new_results[8];
+static osMessageQueueId_t queue_new_results[16];
 static size_t queue_new_result_count = 0;
 static size_t queue_new_result_index = 0;
 static uint32_t queue_new_call_count = 0;
 
-static osMutexId_t mutex_new_results[8];
+static osMutexId_t mutex_new_results[16];
 static size_t mutex_new_result_count = 0;
 static size_t mutex_new_result_index = 0;
 static uint32_t mutex_new_call_count = 0;
@@ -101,7 +101,7 @@ void Test_Stubs_Reset(void)
 void Test_SetQueueNewResults(const osMessageQueueId_t *results, size_t count)
 {
     size_t i = 0;
-    queue_new_result_count = (count > 8) ? 8 : count;
+    queue_new_result_count = (count > 16) ? 16 : count;
     for (i = 0; i < queue_new_result_count; i++) {
         queue_new_results[i] = results[i];
     }
@@ -116,7 +116,7 @@ uint32_t Test_GetQueueNewCallCount(void)
 void Test_SetMutexNewResults(const osMutexId_t *results, size_t count)
 {
     size_t i = 0;
-    mutex_new_result_count = (count > 8) ? 8 : count;
+    mutex_new_result_count = (count > 16) ? 16 : count;
     for (i = 0; i < mutex_new_result_count; i++) {
         mutex_new_results[i] = results[i];
     }
@@ -372,6 +372,11 @@ float IO_GetTemp(Temp *t)
     return t->value;
 }
 
+uint32_t IO_GetCurrent(Current *c)
+{
+    return c->value;
+}
+
 void IO_SetDigitalIO(DigitalIO *dio, uint16_t value)
 {
     dio->value = (uint8_t)value;
@@ -390,10 +395,21 @@ void IO_SetTemp(Temp *t, float value)
     t->last_updated = osKernelGetTickCount();
 }
 
+void IO_SetCurrent(Current *c, uint32_t value)
+{
+    c->value = value;
+    c->last_updated = osKernelGetTickCount();
+}
+
 float Therm_CalculateTemperature(uint16_t adc_value)
 {
     (void)adc_value;
     return 25.0f;
+}
+
+__attribute__((weak)) uint32_t Curr_CalculateCurrentSense(uint32_t adc_value)
+{
+    return adc_value;
 }
 
 __attribute__((weak)) HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)

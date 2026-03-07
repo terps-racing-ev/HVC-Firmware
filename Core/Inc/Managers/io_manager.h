@@ -23,6 +23,7 @@
 #include "state.h"
 #include "can_id.h"
 #include "therm.h"
+#include "curr_sense.h"
 #include "stm32l4xx_hal.h"
 
 #define IO_UPDATE_FREQ_MS 10

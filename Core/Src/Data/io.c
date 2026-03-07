@@ -31,6 +31,16 @@ float IO_GetTemp(Temp *t) {
     return val;
 }
 
+uint32_t IO_GetCurrent(Current *c) {
+    uint32_t curr;
+
+    osMutexAcquire(c->mutex, osWaitForever);
+    curr = c->value;
+    osMutexRelease(c->mutex);
+
+    return curr;
+}
+
 void IO_SetDigitalIO(DigitalIO *dio, uint16_t value) {
     uint32_t now = osKernelGetTickCount();
 
@@ -56,4 +66,13 @@ void IO_SetTemp(Temp *t, float value) {
     t->value = value;
     t->last_updated = now;
     osMutexRelease(t->mutex);
+}
+
+void IO_SetCurrent(Current *c, uint32_t value) {
+    uint32_t now = osKernelGetTickCount();
+
+    osMutexAcquire(c->mutex, osWaitForever);
+    c->value = value;
+    c->last_updated = now;
+    osMutexRelease(c->mutex);
 }
