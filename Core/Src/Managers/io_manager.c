@@ -39,13 +39,17 @@ Current cs_high = {0};
 
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
-static uint16_t _IO_ReadADCChannel(void);
-static void _IO_WriteFault(void);
-static void _IO_ReadDigitalIO(void);
-static void _IO_ReadTherm(void);
-static void _IO_ReadCurrSense(void);
-static void _IO_CalculateTemps(void);
-static void _IO_PackIOSummary(uint8_t *data, uint8_t *length);
+static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out);
+static void _IO_PackIOSummary(
+    uint8_t *data, 
+    uint8_t *length,
+    uint8_t sdc_val,
+    uint8_t imd_val,
+    uint16_t therm_val,
+    uint8_t bms_fault_val,
+    uint16_t cs_low_val,
+    uint16_t cs_high_val
+);
 
 HAL_StatusTypeDef IO_Manager_Init(void){
     // Start hardware
@@ -82,18 +86,39 @@ void IO_ManagerTask(void *argument){
     uint8_t io_summary[8];
     uint8_t io_summary_len;
     float temp;
+    GPIO_PinState sdc_raw;
+    GPIO_PinState imd_raw;
+    uint16_t therm_raw;
 
     for (;;) {
         // Read SDC + IMD
-        _IO_ReadDigitalIO();
+        sdc_raw = HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin);
+        imd_raw = HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin);
+        IO_SetDigitalIO(&sdc, sdc_raw);
+        IO_SetDigitalIO(&imd, imd_raw);
+        
         // Read Therm
-        _IO_ReadTherm();
-        // Calculate and update temp values
-        _IO_CalculateTemps();
+        // TODO: handle HAL_ERROR return
+        _IO_ReadADCChannel(ADC_CHANNEL_8, &therm_raw);
+        IO_SetAnalogIO(&therm, therm_raw);
+
+        // Calculate and update temp value
+        temp = Therm_CalculateTemperature(therm_raw);
+        IO_SetTemp(&ref_temp, temp);
+
         // TODO: Emeter temps?
 
         // Send summary message
-        _IO_PackIOSummary(io_summary, &io_summary_len);
+        _IO_PackIOSummary(
+            io_summary, 
+            &io_summary_len,
+            sdc_raw,
+            imd_raw,
+            therm_raw,
+            IO_GetDigitalIO(&bms_fault),    // These values are set in the priority task
+            IO_GetAnalogIO(&cs_low_raw),
+            IO_GetAnalogIO(&cs_high_raw)
+        );
         LV_CAN_SendMessage(
             CAN_ID_IO_SUMMARY,
             io_summary,
@@ -111,24 +136,33 @@ void IO_ManagerTask(void *argument){
   * @retval None
   */
 void IO_PriorityManagerTask(void *argument) {
+    uint16_t cs_low_raw_val;
+    uint16_t cs_high_raw_val;
     uint32_t cs_low_val;
     uint32_t cs_high_val;
+    uint8_t fault;
 
     for (;;) {
-        // Write BMS Fault
-        _IO_WriteFault();
-        // Read Curr Senses
-        _IO_ReadCurrSense();
+        // Write BMS Fault (1 is good)
+        fault = IO_GetDigitalIO(&bms_fault);
+        if (fault) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
+        else HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
+
+        // Read CS_LOW (Channel 5 - PA0)
+        _IO_ReadADCChannel(ADC_CHANNEL_5, &cs_low_raw_val);
+        IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
+        // Read CS_HIGH (Channel 6 - PA1)
+        _IO_ReadADCChannel(ADC_CHANNEL_6, &cs_high_raw_val);
+        IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
+
         // Set cs values
-        // TODO: Make the read functions return values so don't need to get mutex again
-        cs_low_val = Curr_CalculateCurrentSense(IO_GetCurrent(&cs_low));
-        cs_high_val = Curr_CalculateCurrentSense(IO_GetCurrent(&cs_high));
+        cs_low_val = Curr_CalculateCurrentSense(cs_low_raw_val);
         IO_SetCurrent(&cs_low, cs_low_val);
+        cs_high_val = Curr_CalculateCurrentSense(cs_high_raw_val);
         IO_SetCurrent(&cs_high, cs_high_val);
 
         osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
     }
-
 }
 
 /**
@@ -142,7 +176,7 @@ static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel)
     
     sConfig.Channel = channel;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5; // Longer cycle time = higher impedance
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -154,73 +188,34 @@ static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel)
  * @brief Read ADC value from currently configured channel
  * @retval ADC converted value (0-4095)
  */
-static uint16_t _IO_ReadADCChannel(void)
-{
+static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
+{   
+    if (_IO_ConfigADCChannel(channel) != HAL_OK) {
+        return HAL_ERROR;
+    }
+
     if (HAL_ADC_Start(&hadc1) != HAL_OK) {
-        return 0;
+        return HAL_ERROR;
     }
     
     if (HAL_ADC_PollForConversion(&hadc1, 100) != HAL_OK) {
-        return 0;
+        return HAL_ERROR;
     }
     
-    return HAL_ADC_GetValue(&hadc1);
+    *out = HAL_ADC_GetValue(&hadc1);
+    return HAL_OK;
 }
 
-/**
- * @brief Write BMS fault
- */
-static void _IO_WriteFault(void) {
-    uint8_t fault = IO_GetDigitalIO(&bms_fault);
-    if (fault) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
-    else HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
-}
-
-/**
- * @brief Read Curr Senses
- */
-static void _IO_ReadCurrSense(void) {
-    // Read CS_LOW (Channel 5 - PA0)
-    _IO_ConfigADCChannel(ADC_CHANNEL_5);
-    uint16_t cs_low_raw_val = _IO_ReadADCChannel();
-    IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
-    
-    // Read CS_HIGH (Channel 6 - PA1)
-    _IO_ConfigADCChannel(ADC_CHANNEL_6);
-    uint16_t cs_high_raw_val = _IO_ReadADCChannel();
-    IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
-}
-
-/**
- * @brief Read and write all digital IO values
- */
-static void _IO_ReadDigitalIO(void)
-{
-    GPIO_PinState sdc_raw = HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin);
-    IO_SetDigitalIO(&sdc, sdc_raw);
-
-    GPIO_PinState imd_raw = HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin);
-    IO_SetDigitalIO(&imd, imd_raw);
-}
-
-/**
- * @brief Read thermistor value
- */
-static void _IO_ReadTherm(void)
-{
-    _IO_ConfigADCChannel(ADC_CHANNEL_8);
-    uint16_t therm_raw = _IO_ReadADCChannel();
-    IO_SetAnalogIO(&therm, therm_raw);
-}
-
-static void _IO_PackIOSummary(uint8_t *data, uint8_t *length)
-{
-    uint8_t sdc_val;
-    uint8_t imd_val;
-    uint8_t bms_fault_val;
-    uint16_t cs_low_val;
-    uint16_t cs_high_val;
-    uint16_t therm_val;
+static void _IO_PackIOSummary(
+    uint8_t *data, 
+    uint8_t *length,
+    uint8_t sdc_val,
+    uint8_t imd_val,
+    uint16_t therm_val,
+    uint8_t bms_fault_val,
+    uint16_t cs_low_val,
+    uint16_t cs_high_val
+){
 
     if ((data == NULL) || (length == NULL)) {
         return;
@@ -236,14 +231,6 @@ static void _IO_PackIOSummary(uint8_t *data, uint8_t *length)
     data[6] = 0U;
     data[7] = 0U;
     *length = 7U;
-
-    // Read using IO data accessors
-    sdc_val = IO_GetDigitalIO(&sdc);
-    imd_val = IO_GetDigitalIO(&imd);
-    bms_fault_val = IO_GetDigitalIO(&bms_fault);
-    cs_low_val = IO_GetAnalogIO(&cs_low_raw);
-    cs_high_val = IO_GetAnalogIO(&cs_high_raw);
-    therm_val = IO_GetAnalogIO(&therm);
 
     // 1) sdc (bit 0)
     data[0] |= (uint8_t)(sdc_val & 0x01U);
@@ -267,14 +254,3 @@ static void _IO_PackIOSummary(uint8_t *data, uint8_t *length)
     data[6] = (uint8_t)((therm_val >> 8U) & 0xFFU);
 }
 
-/**
- * @brief Calculate temp values from adc
- */
-static void _IO_CalculateTemps(void) {
-    uint16_t therm_adc_val;
-    float temp;
-    
-    therm_adc_val = IO_GetAnalogIO(&therm);
-    temp = Therm_CalculateTemperature(therm_adc_val);
-    IO_SetTemp(&ref_temp, temp);
-}
