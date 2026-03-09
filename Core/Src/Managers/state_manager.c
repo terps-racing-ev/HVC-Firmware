@@ -32,13 +32,7 @@ static ErrorMask _State_CheckErrors(void);
   * @retval HAL_StatusTypeDef
   */
 HAL_StatusTypeDef State_Manager_Init(void) {
-    const osMutexAttr_t bms_state_mutex_attr = {
-        .name = "BMS_State_Mutex"
-    };
-    bms_state.mutex = osMutexNew(&bms_state_mutex_attr);
-    if (!bms_state.mutex) return HAL_ERROR;
-
-    bms_state.state = PRE_INIT;
+    if (State_InitState(&bms_state) != HAL_OK) return HAL_ERROR;
 
     return HAL_OK;
 }

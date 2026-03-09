@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "cmsis_os.h"
+#include "stm32l4xx_hal.h"
 
 typedef enum {
     PRE_INIT = 0,
@@ -39,6 +40,7 @@ extern uint8_t lv_can_initialized;
 extern uint8_t bms_can_initialized;
 extern uint8_t io_initialized;
 
+HAL_StatusTypeDef State_InitState(Locked_State *state);
 void State_GetState(State *state);
 void State_SetState(State new_state);
 void State_SetErrorMask(ErrorMask mask);

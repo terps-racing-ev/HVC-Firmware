@@ -2,6 +2,7 @@
 #define IO_H
 
 #include "cmsis_os.h"
+#include "stm32l4xx_hal.h"
 #include <stdint.h>
 #include <time.h>
 
@@ -38,7 +39,11 @@ typedef struct {
     uint32_t last_updated;
 } Current;
 
-// Setters and getters for IO/temps
+// Initializers, Setters and getters for IO/temps
+HAL_StatusTypeDef IO_InitDigitalIO(DigitalIO* dio, const char* mutex_name);
+HAL_StatusTypeDef IO_InitAnalogIO(AnalogIO* aio, const char* mutex_name);
+HAL_StatusTypeDef IO_InitTemp(Temp* temp, const char* mutex_name);
+HAL_StatusTypeDef IO_InitCurrent(Current* current, const char* mutex_name);
 uint8_t IO_GetDigitalIO(DigitalIO *dio);
 uint16_t IO_GetAnalogIO(AnalogIO *aio);
 float IO_GetTemp(Temp *t);

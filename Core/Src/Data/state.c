@@ -4,6 +4,24 @@
 Locked_ErrorMask bms_errors = {0};
 
 /**
+ * @brief  Init BMS state to PRE_INIT and inits mutex
+ * @param  state: Output pointer for the current state.
+ * @retval HAL_StatusTypeDef: init status
+ */
+HAL_StatusTypeDef State_InitState(Locked_State *state) {
+    const osMutexAttr_t state_mutex_attr = {
+        .name = "State_Mutex"
+    };
+    state->mutex = osMutexNew(&state_mutex_attr);  
+    if (!state->mutex) return HAL_ERROR;
+
+    // Always init to PRE_INIT state
+    state->state = PRE_INIT;
+
+    return HAL_OK;
+}
+
+/**
  * @brief  Read the current high-level BMS state.
  * @param  state: Output pointer for the current state.
  * @retval None

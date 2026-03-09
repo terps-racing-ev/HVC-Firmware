@@ -85,6 +85,7 @@ typedef enum {
 
 #define ADC_REGULAR_RANK_1 1U
 #define ADC_SAMPLETIME_2CYCLES_5 0U
+#define ADC_SAMPLETIME_640CYCLES_5 (((0x4UL << (0U)) | (0x2UL << (0U)) | (0x1UL << (0U))))
 #define ADC_SINGLE_ENDED 0U
 #define ADC_OFFSET_NONE 0U
 #define ADC_CHANNEL_5 5U
