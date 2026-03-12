@@ -138,11 +138,14 @@ void IO_ManagerTask(void *argument){
 void IO_PriorityManagerTask(void *argument) {
     uint16_t cs_low_raw_val;
     uint16_t cs_high_raw_val;
-    uint32_t cs_low_val;
-    uint32_t cs_high_val;
+    int32_t cs_low_val_mA;
+    int32_t cs_high_val_mA;
     uint8_t fault;
+    uint32_t now;
 
     for (;;) {
+        now = osKernelGetTickCount();
+
         // Write BMS Fault (1 is good)
         fault = IO_GetDigitalIO(&bms_fault);
         if (fault) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
@@ -156,10 +159,10 @@ void IO_PriorityManagerTask(void *argument) {
         IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
 
         // Set cs values
-        cs_low_val = Curr_CalculateCurrentSense(cs_low_raw_val);
-        IO_SetCurrent(&cs_low, cs_low_val);
-        cs_high_val = Curr_CalculateCurrentSense(cs_high_raw_val);
-        IO_SetCurrent(&cs_high, cs_high_val);
+        cs_low_val_mA = Curr_CalculateCurrentSenseLow(cs_low_raw_val);
+        IO_SetCurrent(&cs_low, cs_low_val_mA);
+        cs_high_val_mA = Curr_CalculateCurrentSenseHigh(cs_high_raw_val);
+        IO_SetCurrent(&cs_high, cs_high_val_mA);
 
         osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
     }
