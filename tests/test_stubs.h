@@ -38,4 +38,10 @@ uint8_t Test_GetLastLvCanDataByte(uint8_t index);
 uint32_t Test_GetDelayCallCount(void);
 uint32_t Test_GetLastDelayTicks(void);
 
+void Test_SetSpiTransmitResult(HAL_StatusTypeDef result);
+void Test_SetSpiReceiveResult(HAL_StatusTypeDef result, uint8_t rx_byte);
+uint32_t Test_GetSpiTransmitCallCount(void);
+uint32_t Test_GetSpiReceiveCallCount(void);
+void Test_ResetSpiCounts(void);
+
 #endif /* TEST_STUBS_H */

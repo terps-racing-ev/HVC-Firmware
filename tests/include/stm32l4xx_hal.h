@@ -109,4 +109,21 @@ void HAL_GPIO_TogglePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState PinState);
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 
+typedef struct { int dummy; } SPI_HandleTypeDef;
+extern SPI_HandleTypeDef hspi1;
+
+typedef enum {
+    HAL_SPI_STATE_READY = 0,
+    HAL_SPI_STATE_BUSY  = 1
+} HAL_SPI_StateTypeDef;
+
+#define SPI1_CS_GPIO_Port GPIOA
+#define SPI1_CS_Pin GPIO_PIN_4
+
+HAL_StatusTypeDef HAL_SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData,
+                                    uint16_t Size, uint32_t Timeout);
+HAL_StatusTypeDef HAL_SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData,
+                                   uint16_t Size, uint32_t Timeout);
+HAL_SPI_StateTypeDef HAL_SPI_GetState(SPI_HandleTypeDef *hspi);
+
 #endif /* STM32L4XX_HAL_H */

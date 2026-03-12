@@ -90,6 +90,8 @@ void Test_Stubs_Reset(void)
     memset(&ref_temp, 0, sizeof(ref_temp));
     test_state = PRE_INIT;
     test_error_mask = 0;
+    Test_ResetSpiCounts();
+    
 
     for (size_t i = 0; i < NUM_ACC_MODULES; i++) {
         memset(&test_acc_modules[i], 0, sizeof(Acc_Module));
@@ -622,4 +624,59 @@ uint32_t Test_GetDelayCallCount(void)
 uint32_t Test_GetLastDelayTicks(void)
 {
     return last_delay_ticks;
+}
+
+/* SPI stubs */
+SPI_HandleTypeDef hspi1;
+
+static HAL_StatusTypeDef spi_transmit_result = HAL_OK;
+static HAL_StatusTypeDef spi_receive_result = HAL_OK;
+static uint32_t spi_transmit_call_count = 0;
+static uint32_t spi_receive_call_count = 0;
+static uint8_t spi_rx_byte = 0;
+
+void Test_SetSpiTransmitResult(HAL_StatusTypeDef result)
+{
+    spi_transmit_result = result;
+}
+
+void Test_SetSpiReceiveResult(HAL_StatusTypeDef result, uint8_t rx_byte)
+{
+    spi_receive_result = result;
+    spi_rx_byte = rx_byte;
+}
+
+uint32_t Test_GetSpiTransmitCallCount(void) { return spi_transmit_call_count; }
+uint32_t Test_GetSpiReceiveCallCount(void)  { return spi_receive_call_count; }
+
+void Test_ResetSpiCounts(void)
+{
+    spi_transmit_call_count = 0;
+    spi_receive_call_count = 0;
+    spi_transmit_result = HAL_OK;
+    spi_receive_result = HAL_OK;
+    spi_rx_byte = 0;
+}
+
+HAL_StatusTypeDef HAL_SPI_Transmit(SPI_HandleTypeDef *hspi, uint8_t *pData,
+                                    uint16_t Size, uint32_t Timeout)
+{
+    (void)hspi; (void)pData; (void)Size; (void)Timeout;
+    spi_transmit_call_count++;
+    return spi_transmit_result;
+}
+
+HAL_StatusTypeDef HAL_SPI_Receive(SPI_HandleTypeDef *hspi, uint8_t *pData,
+                                   uint16_t Size, uint32_t Timeout)
+{
+    (void)hspi; (void)Size; (void)Timeout;
+    spi_receive_call_count++;
+    if (pData != NULL) { *pData = spi_rx_byte; }
+    return spi_receive_result;
+}
+
+HAL_SPI_StateTypeDef HAL_SPI_GetState(SPI_HandleTypeDef *hspi)
+{
+    (void)hspi;
+    return HAL_SPI_STATE_READY;
 }
