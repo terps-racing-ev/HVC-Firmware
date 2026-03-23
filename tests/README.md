@@ -61,15 +61,18 @@ docker build -f Dockerfile.test -t hvc-tests .
 Run all tests:
 
 ```
-docker run --rm -v ${PWD}:/work -w /work hvc-tests
+docker rm -f hvc-tests 2>$null
+docker run --name hvc-tests --rm -v ${PWD}:/work -w /work hvc-tests
 ```
 
 Run a single module:
 
 ```
-docker run --rm -v ${PWD}:/work -w /work hvc-tests <module>
+docker rm -f hvc-tests 2>$null
+docker run --name hvc-tests --rm -v ${PWD}:/work -w /work hvc-tests <module>
 ```
 
 Notes:
 - In PowerShell, use `${PWD}` for volume mounts. In cmd.exe, `%cd%` works.
+- The container name is fixed (`hvc-tests`) and is removed after each run (`--rm`).
 - Each test file is built into its own binary: `tests/build/test_<module>`.

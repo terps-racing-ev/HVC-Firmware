@@ -19,6 +19,19 @@
 
 #include "stm32l4xx_hal.h"
 #include "acc.h"
+#include "soc.h"
+
+#define ACC_UPDATE_FREQ_MS 10
+
+#define SOC_CS_QUEUE_SIZE 20
+
+// Queue of curr sense readings for soc
+// Instead of acc_manager task reading curr sense
+// value whenever it updates, it just reads what the 
+// IO priority manager puts on the queue. This means 
+// the acc manager can run on a slower update freq 
+// since it can just batch process all things on queue
+osMessageQueueId_t soc_curr_sense_queue;
 
 /**
   * @brief  Initialize acc manager

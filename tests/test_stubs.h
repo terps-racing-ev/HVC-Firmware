@@ -26,6 +26,21 @@ void Test_SetKernelTick(uint32_t tick);
 void Test_SetDelayHook(Test_DelayHook hook);
 void Test_SetAdcStartResult(HAL_StatusTypeDef result);
 void Test_SetCompStartResult(HAL_StatusTypeDef result);
+void Test_SetAdcConfigResult(HAL_StatusTypeDef result);
+void Test_SetAdcPollResult(HAL_StatusTypeDef result);
+void Test_SetAdcValueSequence(const uint32_t *values, size_t count);
+uint32_t Test_GetAdcConfigCallCount(void);
+uint32_t Test_GetAdcConfigChannel(uint32_t index);
+uint32_t Test_GetAdcStartCallCount(void);
+uint32_t Test_GetAdcPollCallCount(void);
+uint32_t Test_GetAdcGetValueCallCount(void);
+
+void Test_SetGpioReadSequence(const GPIO_PinState *values, size_t count);
+uint32_t Test_GetGpioWriteCallCount(void);
+GPIO_PinState Test_GetLastGpioWriteState(void);
+
+void Test_SetThermResult(float value);
+uint16_t Test_GetThermLastAdc(void);
 
 uint32_t Test_GetBmsCanSendCallCount(void);
 uint32_t Test_GetLvCanSendCallCount(void);

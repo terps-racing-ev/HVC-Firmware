@@ -43,9 +43,9 @@
 typedef struct {
     uint8_t module;
     union {
-        CellTemps cell_temps;
-        AmbientTemps amb_temps;
-        CellVoltages cell_voltages;
+        Cell_Temps_t cell_temps;
+        Ambient_Temps_t amb_temps;
+        Cell_Voltages_t cell_voltages;
         uint32_t heartbeat_timestamp;
     };
 } BMS_Message;

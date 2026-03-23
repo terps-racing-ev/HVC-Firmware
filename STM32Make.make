@@ -81,7 +81,9 @@ Core/Src/Data/io.c \
 Core/Src/Data/state.c \
 Core/Src/Drivers/bmb.c \
 Core/Src/Drivers/curr_sense.c \
+Core/Src/Drivers/flash.c \
 Core/Src/Drivers/mcp2515.c \
+Core/Src/Drivers/soc.c \
 Core/Src/Drivers/spi_can.c \
 Core/Src/Drivers/therm.c \
 Core/Src/Managers/acc_manager.c \

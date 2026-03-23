@@ -39,17 +39,6 @@ Current cs_high = {0};
 
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
-static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out);
-static void _IO_PackIOSummary(
-    uint8_t *data, 
-    uint8_t *length,
-    uint8_t sdc_val,
-    uint8_t imd_val,
-    uint16_t therm_val,
-    uint8_t bms_fault_val,
-    uint16_t cs_low_val,
-    uint16_t cs_high_val
-);
 
 HAL_StatusTypeDef IO_Manager_Init(void){
     // Start hardware
@@ -164,6 +153,12 @@ void IO_PriorityManagerTask(void *argument) {
         cs_high_val_mA = Curr_CalculateCurrentSenseHigh(cs_high_raw_val);
         IO_SetCurrent(&cs_high, cs_high_val_mA);
 
+
+        // // Use a queue so curr sense reading is dependent on how fast
+        // // this task reads adc instead of how fast acc manager
+        // // processes values
+        // Acc_AddSocCurrSense(cs_low_val_mA, cs_high_val_mA, now);
+        
         osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
     }
 }
@@ -191,7 +186,7 @@ static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel)
  * @brief Read ADC value from currently configured channel
  * @retval ADC converted value (0-4095)
  */
-static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
+HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
 {   
     if (_IO_ConfigADCChannel(channel) != HAL_OK) {
         return HAL_ERROR;
@@ -209,7 +204,7 @@ static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
     return HAL_OK;
 }
 
-static void _IO_PackIOSummary(
+void _IO_PackIOSummary(
     uint8_t *data, 
     uint8_t *length,
     uint8_t sdc_val,

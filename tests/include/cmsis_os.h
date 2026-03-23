@@ -24,6 +24,14 @@ typedef uint32_t osWaitForever_t;
 
 #define osFlagsWaitAny 0x00000000U
 
+#ifndef configTICK_RATE_HZ
+#define configTICK_RATE_HZ 1000U
+#endif
+
+#ifndef pdMS_TO_TICKS
+#define pdMS_TO_TICKS(ms) ((uint32_t)(((uint64_t)(ms) * (uint64_t)configTICK_RATE_HZ) / 1000U))
+#endif
+
 osMessageQueueId_t osMessageQueueNew(uint32_t msg_count, uint32_t msg_size, const void *attr);
 osStatus_t osMessageQueuePut(osMessageQueueId_t mq_id, const void *msg_ptr, uint8_t msg_prio, uint32_t timeout);
 osStatus_t osMessageQueueGet(osMessageQueueId_t mq_id, void *msg_ptr, uint8_t *msg_prio, uint32_t timeout);

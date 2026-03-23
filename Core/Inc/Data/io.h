@@ -35,7 +35,7 @@ typedef struct {
 
 typedef struct {
     osMutexId_t mutex;          /**< Mutex for thread-safe access */
-    uint32_t value;             /**< Current in mV */
+    int32_t value;             /**< Current in mV */
     uint32_t last_updated;
 } Current;
 
@@ -47,13 +47,11 @@ HAL_StatusTypeDef IO_InitCurrent(Current* current, const char* mutex_name);
 uint8_t IO_GetDigitalIO(DigitalIO *dio);
 uint16_t IO_GetAnalogIO(AnalogIO *aio);
 float IO_GetTemp(Temp *t);
-uint32_t IO_GetCurrent(Current *c);
-void IO_SetDigitalIO(DigitalIO *dio, uint16_t value);
+int32_t IO_GetCurrent(Current *c);
+void IO_SetDigitalIO(DigitalIO *dio, uint8_t value);
 void IO_SetAnalogIO(AnalogIO *aio, uint16_t value);
 void IO_SetTemp(Temp *t, float value);
-void IO_SetCurrent(Current *c, uint32_t value);
-
-
+void IO_SetCurrent(Current *c, int32_t value);
 
 // Public IO values
 extern DigitalIO sdc;

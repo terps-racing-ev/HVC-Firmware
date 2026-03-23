@@ -27,11 +27,32 @@ static uint8_t can_get_rx_dlc = 0;
 
 static HAL_StatusTypeDef adc_start_result = HAL_OK;
 static HAL_StatusTypeDef comp_start_result = HAL_OK;
+static HAL_StatusTypeDef adc_config_result = HAL_OK;
+static HAL_StatusTypeDef adc_poll_result = HAL_OK;
+static uint32_t adc_config_call_count = 0;
+static uint32_t adc_start_call_count = 0;
+static uint32_t adc_poll_call_count = 0;
+static uint32_t adc_get_value_call_count = 0;
+static uint32_t adc_config_channels[16];
+static size_t adc_config_channel_count = 0;
+static uint32_t adc_get_values[16];
+static size_t adc_get_value_count = 0;
+static size_t adc_get_value_index = 0;
 
 static uint32_t kernel_tick = 0;
 static Test_DelayHook delay_hook = NULL;
 static uint32_t delay_call_count = 0;
 static uint32_t last_delay_ticks = 0;
+
+static GPIO_PinState gpio_read_sequence[16];
+static size_t gpio_read_sequence_count = 0;
+static size_t gpio_read_sequence_index = 0;
+static uint32_t gpio_write_call_count = 0;
+static GPIO_PinState last_gpio_write_state = GPIO_PIN_RESET;
+static uint16_t last_gpio_write_pin = 0;
+
+static float therm_result = 25.0f;
+static uint16_t therm_last_adc = 0;
 
 CAN_HandleTypeDef hcan1;
 ADC_HandleTypeDef hadc1;
@@ -42,10 +63,10 @@ __attribute__((weak)) uint8_t io_initialized = 0;
 __attribute__((weak)) uint8_t bms_can_initialized = 0;
 __attribute__((weak)) uint8_t lv_can_initialized = 0;
 __attribute__((weak)) Temp ref_temp = {0};
-__attribute__((weak)) Acc_Module *acc[NUM_ACC_MODULES] = {0};
+__attribute__((weak)) Acc_Module_t *acc[NUM_ACC_MODULES] = {0};
 
 static State test_state = PRE_INIT;
-static Acc_Module test_acc_modules[NUM_ACC_MODULES];
+static Acc_Module_t test_acc_modules[NUM_ACC_MODULES];
 static ErrorMask test_error_mask = 0;
 static uint32_t bms_can_send_call_count = 0;
 static uint32_t lv_can_send_call_count = 0;
@@ -72,10 +93,26 @@ void Test_Stubs_Reset(void)
     can_get_rx_dlc = 0;
     adc_start_result = HAL_OK;
     comp_start_result = HAL_OK;
+    adc_config_result = HAL_OK;
+    adc_poll_result = HAL_OK;
+    adc_config_call_count = 0;
+    adc_start_call_count = 0;
+    adc_poll_call_count = 0;
+    adc_get_value_call_count = 0;
+    adc_config_channel_count = 0;
+    adc_get_value_count = 0;
+    adc_get_value_index = 0;
     kernel_tick = 0;
     delay_hook = NULL;
     delay_call_count = 0;
     last_delay_ticks = 0;
+    gpio_read_sequence_count = 0;
+    gpio_read_sequence_index = 0;
+    gpio_write_call_count = 0;
+    last_gpio_write_state = GPIO_PIN_RESET;
+    last_gpio_write_pin = 0;
+    therm_result = 25.0f;
+    therm_last_adc = 0;
     bms_can_send_call_count = 0;
     lv_can_send_call_count = 0;
     bms_can_last_id = 0;
@@ -92,7 +129,7 @@ void Test_Stubs_Reset(void)
     test_error_mask = 0;
 
     for (size_t i = 0; i < NUM_ACC_MODULES; i++) {
-        memset(&test_acc_modules[i], 0, sizeof(Acc_Module));
+        memset(&test_acc_modules[i], 0, sizeof(Acc_Module_t));
         test_acc_modules[i].mutex = (osMutexId_t)0x1;
         acc[i] = &test_acc_modules[i];
     }
@@ -168,6 +205,84 @@ void Test_SetAdcStartResult(HAL_StatusTypeDef result)
 void Test_SetCompStartResult(HAL_StatusTypeDef result)
 {
     comp_start_result = result;
+}
+
+void Test_SetAdcConfigResult(HAL_StatusTypeDef result)
+{
+    adc_config_result = result;
+}
+
+void Test_SetAdcPollResult(HAL_StatusTypeDef result)
+{
+    adc_poll_result = result;
+}
+
+void Test_SetAdcValueSequence(const uint32_t *values, size_t count)
+{
+    size_t i = 0;
+    adc_get_value_count = (count > 16) ? 16 : count;
+    for (i = 0; i < adc_get_value_count; i++) {
+        adc_get_values[i] = values[i];
+    }
+    adc_get_value_index = 0;
+}
+
+uint32_t Test_GetAdcConfigCallCount(void)
+{
+    return adc_config_call_count;
+}
+
+uint32_t Test_GetAdcConfigChannel(uint32_t index)
+{
+    if (index >= adc_config_channel_count) {
+        return 0;
+    }
+    return adc_config_channels[index];
+}
+
+uint32_t Test_GetAdcStartCallCount(void)
+{
+    return adc_start_call_count;
+}
+
+uint32_t Test_GetAdcPollCallCount(void)
+{
+    return adc_poll_call_count;
+}
+
+uint32_t Test_GetAdcGetValueCallCount(void)
+{
+    return adc_get_value_call_count;
+}
+
+void Test_SetGpioReadSequence(const GPIO_PinState *values, size_t count)
+{
+    size_t i = 0;
+    gpio_read_sequence_count = (count > 16) ? 16 : count;
+    for (i = 0; i < gpio_read_sequence_count; i++) {
+        gpio_read_sequence[i] = values[i];
+    }
+    gpio_read_sequence_index = 0;
+}
+
+uint32_t Test_GetGpioWriteCallCount(void)
+{
+    return gpio_write_call_count;
+}
+
+GPIO_PinState Test_GetLastGpioWriteState(void)
+{
+    return last_gpio_write_state;
+}
+
+void Test_SetThermResult(float value)
+{
+    therm_result = value;
+}
+
+uint16_t Test_GetThermLastAdc(void)
+{
+    return therm_last_adc;
 }
 
 osMessageQueueId_t osMessageQueueNew(uint32_t msg_count, uint32_t msg_size, const void *attr)
@@ -286,26 +401,35 @@ HAL_StatusTypeDef HAL_CAN_GetRxMessage(CAN_HandleTypeDef *hcan, uint32_t fifo, C
 HAL_StatusTypeDef HAL_ADC_Start(ADC_HandleTypeDef *hadc)
 {
     (void)hadc;
+    adc_start_call_count++;
     return adc_start_result;
 }
 
 HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef *hadc, ADC_ChannelConfTypeDef *sConfig)
 {
     (void)hadc;
-    (void)sConfig;
-    return HAL_OK;
+    adc_config_call_count++;
+    if ((sConfig != NULL) && (adc_config_channel_count < 16)) {
+        adc_config_channels[adc_config_channel_count++] = sConfig->Channel;
+    }
+    return adc_config_result;
 }
 
 HAL_StatusTypeDef HAL_ADC_PollForConversion(ADC_HandleTypeDef *hadc, uint32_t timeout)
 {
     (void)hadc;
     (void)timeout;
-    return HAL_OK;
+    adc_poll_call_count++;
+    return adc_poll_result;
 }
 
 uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *hadc)
 {
     (void)hadc;
+    adc_get_value_call_count++;
+    if (adc_get_value_index < adc_get_value_count) {
+        return adc_get_values[adc_get_value_index++];
+    }
     return 0;
 }
 
@@ -324,14 +448,18 @@ void HAL_GPIO_TogglePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
 void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState PinState)
 {
     (void)GPIOx;
-    (void)GPIO_Pin;
-    (void)PinState;
+    gpio_write_call_count++;
+    last_gpio_write_state = PinState;
+    last_gpio_write_pin = GPIO_Pin;
 }
 
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
 {
     (void)GPIOx;
     (void)GPIO_Pin;
+    if (gpio_read_sequence_index < gpio_read_sequence_count) {
+        return gpio_read_sequence[gpio_read_sequence_index++];
+    }
     return GPIO_PIN_RESET;
 }
 
@@ -452,14 +580,14 @@ float IO_GetTemp(Temp *t)
     return t->value;
 }
 
-uint32_t IO_GetCurrent(Current *c)
+int32_t IO_GetCurrent(Current *c)
 {
     return c->value;
 }
 
-void IO_SetDigitalIO(DigitalIO *dio, uint16_t value)
+void IO_SetDigitalIO(DigitalIO *dio, uint8_t value)
 {
-    dio->value = (uint8_t)value;
+    dio->value = value;
     dio->last_updated = osKernelGetTickCount();
 }
 
@@ -475,7 +603,7 @@ void IO_SetTemp(Temp *t, float value)
     t->last_updated = osKernelGetTickCount();
 }
 
-void IO_SetCurrent(Current *c, uint32_t value)
+void IO_SetCurrent(Current *c, int32_t value)
 {
     c->value = value;
     c->last_updated = osKernelGetTickCount();
@@ -483,13 +611,23 @@ void IO_SetCurrent(Current *c, uint32_t value)
 
 float Therm_CalculateTemperature(uint16_t adc_value)
 {
-    (void)adc_value;
-    return 25.0f;
+    therm_last_adc = adc_value;
+    return therm_result;
 }
 
 __attribute__((weak)) uint32_t Curr_CalculateCurrentSense(uint32_t adc_value)
 {
     return adc_value;
+}
+
+__attribute__((weak)) int32_t Curr_CalculateCurrentSenseHigh(uint32_t adc_value)
+{
+    return (int32_t)adc_value;
+}
+
+__attribute__((weak)) int32_t Curr_CalculateCurrentSenseLow(uint32_t adc_value)
+{
+    return (int32_t)adc_value;
 }
 
 __attribute__((weak)) HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
@@ -561,7 +699,7 @@ __attribute__((weak)) void State_GetErrorMask(ErrorMask *mask)
     }
 }
 
-__attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module *module, uint32_t *last_update)
+__attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t *last_update)
 {
     if ((module != NULL) && (last_update != NULL)) {
         *last_update = module->heartbeat_last_update;

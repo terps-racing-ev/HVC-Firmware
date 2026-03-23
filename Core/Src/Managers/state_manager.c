@@ -114,23 +114,24 @@ static ErrorMask _State_CheckErrors(void) {
     uint32_t now  = osKernelGetTickCount();
     uint32_t last_heartbeat;
 
-    if (CHECK_REF_OVERTEMP) {
+    #ifdef CHECK_REF_OVERTEMP
         // Ref overtemp
         float temp = IO_GetTemp(&ref_temp);
         if (temp > 60.0f) {
             SET_ERROR(errors, BMS_ERR_REF_OVER_TEMP);
         }
-    }
-
-    if (CHECK_MODULE_TIMEOUT) {
+    #endif
+    
+    #ifdef CHECK_MODULE_TIMEOUT
         // Heartbeat
         for (int i = 0; i < NUM_ACC_MODULES; i++) {
             Acc_GetHeartbeatLastUpdate(acc[i], &last_heartbeat);
             if (now-last_heartbeat > MODULE_TIMEOUT_CUTOFF_TICKS) {
                 SET_ERROR(errors, BMS_ERR_MODULE_TIMEOUT);
+                break;  // Once error is set we don't gain extra info by going through rest
             }
         }
-    }
+    #endif
 
     return errors;
 }
@@ -141,6 +142,7 @@ static void _State_PackCanMessage(State state, uint8_t *data, uint8_t *length)
         return;
     }
 
+    // TODO: Add errors, etc
     data[0] = (uint8_t)state;
     data[1] = 0U;
     data[2] = 0U;

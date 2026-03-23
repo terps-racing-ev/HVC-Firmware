@@ -4,14 +4,14 @@ static uint32_t dispatch_register_match_count = 0;
 
 CAN_HandleTypeDef hcan1;
 
-Acc_Module module_0 = {0};
-Acc_Module module_1 = {0};
-Acc_Module module_2 = {0};
-Acc_Module module_3 = {0};
-Acc_Module module_4 = {0};
-Acc_Module module_5 = {0};
+Acc_Module_t module_0 = {0};
+Acc_Module_t module_1 = {0};
+Acc_Module_t module_2 = {0};
+Acc_Module_t module_3 = {0};
+Acc_Module_t module_4 = {0};
+Acc_Module_t module_5 = {0};
 
-Acc_Module *acc[6] = {
+Acc_Module_t *acc[6] = {
     &module_0,
     &module_1,
     &module_2,
@@ -187,7 +187,7 @@ bool HandleBMSHeartbeat(const BMS_Message *msg){
     return true;
 }
 
-void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages){
+void Acc_GetCellVoltages(Acc_Module_t *module, Cell_Voltages_t *cell_voltages){
     if (module == NULL) {
         return;
     }
@@ -199,7 +199,7 @@ void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages){
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update){
+void Acc_SetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t* last_update){
     if (module == NULL) {
         return;
     }
@@ -211,7 +211,7 @@ void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update){
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetCellVoltages(Acc_Module *module, const CellVoltages *cell_voltages){
+void Acc_SetCellVoltages(Acc_Module_t *module, const Cell_Voltages_t *cell_voltages){
     if (module == NULL) {
         return;
     }
@@ -223,7 +223,7 @@ void Acc_SetCellVoltages(Acc_Module *module, const CellVoltages *cell_voltages){
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps){
+void Acc_SetCellTemps(Acc_Module_t *module, const Cell_Temps_t *cell_temps){
     if (module == NULL) {
         return;
     }
@@ -235,7 +235,7 @@ void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps){
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps){
+void Acc_SetAmbientTemps(Acc_Module_t *module, const Ambient_Temps_t *amb_temps){
     if (module == NULL) {
         return;
     }

@@ -27,8 +27,13 @@
 
 #define MODULE_TIMEOUT_CUTOFF_TICKS 100
 
-#define CHECK_MODULE_TIMEOUT 1
-#define CHECK_REF_OVERTEMP 1
+/* Error Checking Defines --------------------------------------------- */
+
+// Comment out if unneeded
+#define CHECK_MODULE_TIMEOUT  // Check each BMB for heartbeat message timeout
+#define CHECK_REF_OVERTEMP  // Check HVC ref temp thermistor for overtemp (>60C)
+
+// TODO: implement other errors
 
 /**
   * @brief  Initialize State manager

@@ -18,6 +18,7 @@ COMMON_SOURCES := $(TEST_DIR)/stubs.c
 # Override common sources for specific tests with COMMON_SOURCES_<name>
 COMMON_SOURCES_bms_can_manager := $(TEST_DIR)/bms_can_stubs.c
 MODULE_SOURCE_curr_sense := Core/Src/Drivers/curr_sense.c
+MODULE_SOURCE_soc := Core/Src/Drivers/soc.c
 
 REQUESTED_TESTS := $(filter-out test clean,$(MAKECMDGOALS))
 ifneq ($(REQUESTED_TESTS),)
@@ -30,6 +31,7 @@ TEST_BINS := $(addprefix $(BUILD_DIR)/test_,$(addsuffix $(EXE),$(TESTS)))
 
 CFLAGS += -std=c99 -Wall -Wextra $(INCLUDE_DIRS)
 CFLAGS += -Wno-unused-parameter -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function
+CFLAGS += -DUNIT_TEST
 
 # Run in container:
 #   docker build -f Dockerfile.test -t hvc-tests .
