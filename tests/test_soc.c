@@ -23,10 +23,10 @@ void SOC_UpdateDeltaCapacity(Curr_Sense_Reading_t *cs_reading);
 capacity_pct_t SOC_CalculateCapacityPct(uint32_t cell_voltage_mV);
 uint32_t SOC_CapacityPctToAms(capacity_pct_t capacity_pct);
 
-static Flash_Data_t flash_stub_data;
+static Flash_SOC_Data_t flash_stub_data;
 static HAL_StatusTypeDef flash_stub_status = HAL_OK;
 
-HAL_StatusTypeDef Flash_ReadData(Flash_Data_t *data)
+HAL_StatusTypeDef Flash_ReadSOCData(Flash_SOC_Data_t *data)
 {
     if (data != NULL) {
         *data = flash_stub_data;

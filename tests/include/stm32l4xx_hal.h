@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifndef __IO
+#define __IO volatile
+#endif
+
 typedef enum {
     HAL_OK = 0,
     HAL_ERROR = 1
@@ -92,6 +96,19 @@ typedef enum {
 #define ADC_CHANNEL_6 6U
 #define ADC_CHANNEL_8 8U
 
+/* Minimal FLASH defines used by flash driver in host tests */
+#define FLASH_BASE 0x08000000u
+#define FLASH_PAGE_SIZE 0x1000u
+
+#define FLASH_TYPEERASE_PAGES 0x00u
+#define FLASH_TYPEPROGRAM_DOUBLEWORD 0x00u
+
+typedef struct {
+    uint32_t TypeErase;
+    uint32_t Page;
+    uint32_t NbPages;
+} FLASH_EraseInitTypeDef;
+
 HAL_StatusTypeDef HAL_CAN_ActivateNotification(CAN_HandleTypeDef *hcan, uint32_t active_it);
 HAL_StatusTypeDef HAL_CAN_AddTxMessage(CAN_HandleTypeDef *hcan, CAN_TxHeaderTypeDef *pHeader, uint8_t *pData, uint32_t *pTxMailbox);
 HAL_StatusTypeDef HAL_CAN_GetRxMessage(CAN_HandleTypeDef *hcan, uint32_t fifo, CAN_RxHeaderTypeDef *pHeader, uint8_t *aData);
@@ -104,6 +121,11 @@ uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *hadc);
 HAL_StatusTypeDef HAL_COMP_Start(COMP_HandleTypeDef *hcomp);
 
 HAL_StatusTypeDef HAL_CAN_Start(CAN_HandleTypeDef *hcan);
+
+HAL_StatusTypeDef HAL_FLASH_Unlock(void);
+HAL_StatusTypeDef HAL_FLASH_Lock(void);
+HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t *pageError);
+HAL_StatusTypeDef HAL_FLASH_Program(uint32_t typeProgram, uint32_t address, uint64_t data);
 
 void HAL_GPIO_TogglePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState PinState);

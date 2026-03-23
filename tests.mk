@@ -19,6 +19,7 @@ COMMON_SOURCES := $(TEST_DIR)/stubs.c
 COMMON_SOURCES_bms_can_manager := $(TEST_DIR)/bms_can_stubs.c
 MODULE_SOURCE_curr_sense := Core/Src/Drivers/curr_sense.c
 MODULE_SOURCE_soc := Core/Src/Drivers/soc.c
+MODULE_SOURCE_flash := Core/Src/Drivers/flash.c
 
 REQUESTED_TESTS := $(filter-out test clean,$(MAKECMDGOALS))
 ifneq ($(REQUESTED_TESTS),)

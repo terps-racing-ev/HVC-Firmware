@@ -73,10 +73,11 @@ capacity_pct_t SOC_CalculateCapacityPct(uint32_t cell_voltage_mV) {
  * @brief Convert percent capacity to A * ms. Blocks while waiting for flash mutex
  */
 uint32_t SOC_CapacityPctToAms(capacity_pct_t capacity_pct) {
-    
-    Flash_Data_t flash_data;
-    // TODO: handle failure
-    Flash_ReadData(&flash_data);
+    Flash_SOC_Data_t flash_data;
+
+    if (Flash_ReadSOCData(&flash_data) != HAL_OK) {
+        return 0;
+    }
 
     // TODO: cap total_capacity at a reasonable value so we don't overflow ever
 
