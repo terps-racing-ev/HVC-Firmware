@@ -19,6 +19,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "bms_can_manager.h"
+#include "managers_config.h"
 
 /* Private variables ---------------------------------------------------------*/
 static osMessageQueueId_t BMS_CAN_RxQueueHandle = NULL;
@@ -52,6 +53,7 @@ HAL_StatusTypeDef BMS_CAN_Manager_Init(void)
         return HAL_ERROR;
     }
 
+#ifdef BMS_CAN_MANAGER_ENABLED
     if (HAL_CAN_Start(&hcan1) != HAL_OK) {
         return HAL_ERROR;
     }
@@ -69,6 +71,8 @@ HAL_StatusTypeDef BMS_CAN_Manager_Init(void)
     CAN_ResetStatistics(&bms_can_stats);
     
     bms_can_initialized = 1;
+#endif
+
     return HAL_OK;
 }
 
@@ -82,7 +86,7 @@ void BMS_CAN_ManagerTask(void *argument)
     CAN_Message_t msg;
 
     for (;;) {
-
+#ifdef BMS_CAN_MANAGER_ENABLED
         // TODO: limit on how many messages we process at a time?
         // Clear RX queue
         while (osMessageQueueGet(BMS_CAN_RxQueueHandle, &msg, NULL, 0) == osOK) {
@@ -92,9 +96,9 @@ void BMS_CAN_ManagerTask(void *argument)
         while (osMessageQueueGet(BMS_CAN_TxQueueHandle, &msg, NULL, 0) == osOK) {
             BMS_CAN_TransmitMessage(&msg);
         }
-        
+#endif
         // TODO: Implement CAN bus error handling
-        osDelay(10);
+        osDelay(BMS_CAN_UPDATE_FREQ_MS);
     }
 }
 

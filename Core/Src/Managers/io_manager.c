@@ -19,6 +19,7 @@
 
 #include "io_manager.h"
 #include "cmsis_os.h"
+#include "managers_config.h"
 #include "stm32l4xx_hal.h"
 
 uint8_t io_initialized = 0;
@@ -41,15 +42,6 @@ Current cs_high = {0};
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
 
 HAL_StatusTypeDef IO_Manager_Init(void){
-    // Start hardware
-    if (HAL_ADC_Start(&hadc1) != HAL_OK) {
-        return HAL_ERROR;
-    }
-
-    if (HAL_COMP_Start(&hcomp2) != HAL_OK) {
-        return HAL_ERROR;
-    }
-
     // Data init
     if (IO_InitDigitalIO(&sdc, "SDC_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitDigitalIO(&imd, "IMD_Mutex") != HAL_OK) return HAL_ERROR;
@@ -60,6 +52,17 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     if (IO_InitTemp(&ref_temp, "Ref_Temp_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_low, "CS_Low_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_high, "CS_High_Mutex") != HAL_OK) return HAL_ERROR;
+    
+    #ifdef IO_MANAGER_ENABLED
+    // Start hardware
+    if (HAL_ADC_Start(&hadc1) != HAL_OK) {
+        return HAL_ERROR;
+    }
+
+    if (HAL_COMP_Start(&hcomp2) != HAL_OK) {
+        return HAL_ERROR;
+    }
+    #endif
 
     io_initialized = 1;
 
@@ -80,6 +83,7 @@ void IO_ManagerTask(void *argument){
     uint16_t therm_raw;
 
     for (;;) {
+        #ifdef IO_MANAGER_ENABLED
         // Read SDC + IMD
         sdc_raw = HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin);
         imd_raw = HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin);
@@ -114,6 +118,7 @@ void IO_ManagerTask(void *argument){
             io_summary_len,
             CAN_PRIORITY_NORMAL
         );
+        #endif
 
         osDelay(IO_UPDATE_FREQ_MS);
     }
@@ -133,6 +138,7 @@ void IO_PriorityManagerTask(void *argument) {
     uint32_t now;
 
     for (;;) {
+        #ifdef IO_MANAGER_ENABLED
         now = osKernelGetTickCount();
 
         // Write BMS Fault (1 is good)
@@ -153,11 +159,12 @@ void IO_PriorityManagerTask(void *argument) {
         cs_high_val_mA = Curr_CalculateCurrentSenseHigh(cs_high_raw_val);
         IO_SetCurrent(&cs_high, cs_high_val_mA);
 
-
+        
         // // Use a queue so curr sense reading is dependent on how fast
         // // this task reads adc instead of how fast acc manager
         // // processes values
         // Acc_AddSocCurrSense(cs_low_val_mA, cs_high_val_mA, now);
+        #endif
         
         osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
     }

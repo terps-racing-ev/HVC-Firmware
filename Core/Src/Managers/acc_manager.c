@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 
 #include "acc_manager.h"
+#include "can.h"
+#include "managers_config.h"
 
 Acc_Module_t module_0;
 Acc_Module_t module_1;
@@ -82,6 +84,8 @@ void Acc_ManagerTask(void *argument) {
   capacity_pct_t capacity;
 
   for (;;) {
+
+#ifdef ACC_MANAGER_ENABLED
     // Handle curr sense readings in batches
     while (osMessageQueueGet(Acc_SOC_CurrSenseQueueHandle, &r, NULL, 0)) {
       SOC_UpdateDeltaCapacity(&r);
@@ -108,10 +112,7 @@ void Acc_ManagerTask(void *argument) {
       default:  // Do nothing on SOC_SET
         break;
     }
-
-    // Calculate current pct from start_a_ms + delta / total
-
-    // TODO: if time is too long
+#endif
 
     osDelay(ACC_UPDATE_FREQ_MS);
   }

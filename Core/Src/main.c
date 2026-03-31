@@ -25,6 +25,7 @@
 #include "bms_can_manager.h"
 #include "lv_can_manager.h"
 #include "io_manager.h"
+#include "managers_config.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -219,7 +220,7 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-
+  
   if (BMS_CAN_Manager_Init() != HAL_OK) {
     Error_Handler();
   }
@@ -461,8 +462,8 @@ static void MX_COMP2_Init(void)
   hcomp2.Instance = COMP2;
   hcomp2.Init.InvertingInput = COMP_INPUT_MINUS_IO2;
   hcomp2.Init.NonInvertingInput = COMP_INPUT_PLUS_IO1;
-  hcomp2.Init.OutputPol = COMP_OUTPUTPOL_NONINVERTED;
-  hcomp2.Init.Hysteresis = COMP_HYSTERESIS_HIGH;
+  hcomp2.Init.OutputPol = COMP_OUTPUTPOL_INVERTED;
+  hcomp2.Init.Hysteresis = COMP_HYSTERESIS_NONE;
   hcomp2.Init.BlankingSrce = COMP_BLANKINGSRC_NONE;
   hcomp2.Init.Mode = COMP_POWERMODE_HIGHSPEED;
   hcomp2.Init.WindowMode = COMP_WINDOWMODE_DISABLE;

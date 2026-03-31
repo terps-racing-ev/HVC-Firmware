@@ -1,0 +1,12 @@
+#ifndef __MANAGERS_CONFIG_H
+
+#define __MANAGERS_CONFIG_H
+
+// Manager enables
+// #define ACC_MANAGER_ENABLED
+#define BMS_CAN_MANAGER_ENABLED
+#define IO_MANAGER_ENABLED
+// #define LV_CAN_MANAGER_ENABLED
+// #define STATE_MANAGER_ENABLED
+
+#endif

@@ -32,6 +32,8 @@ extern "C" {
 #include "state.h"
 #include "bmb.h"
 
+#define BMS_CAN_UPDATE_FREQ_MS 10
+
 /* External Variables --------------------------------------------------------*/
 extern CAN_HandleTypeDef hcan1;
 

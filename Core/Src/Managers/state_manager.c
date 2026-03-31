@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 
 #include "state_manager.h"
+#include "managers_config.h"
 
 /* Public variables ---------------------------------------------------------*/
 Locked_State bms_state = {0};
@@ -49,6 +50,8 @@ void State_ManagerTask(void *argument) {
     State curr_state;
 
     for (;;) {
+
+#ifdef STATE_MANAGER_ENABLED
         State_GetState(&curr_state);
         if (curr_state > PRE_INIT) {
             errors = _State_CheckErrors();
@@ -70,6 +73,7 @@ void State_ManagerTask(void *argument) {
             length,
             CAN_PRIORITY_CRITICAL
         );
+#endif
 
         osDelay(STATE_REFRESH_FREQ_MS);
     }

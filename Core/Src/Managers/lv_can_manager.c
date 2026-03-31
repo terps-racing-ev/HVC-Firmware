@@ -19,6 +19,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "lv_can_manager.h"
+#include "managers_config.h"
 
 /* Private variables ---------------------------------------------------------*/
 static osMessageQueueId_t LV_CAN_TxQueueHandle = NULL;
@@ -47,6 +48,7 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
         return HAL_ERROR;
     }
 
+#ifdef LV_CAN_MANAGER_ENABLED
     if (!CANSPI_Initialize()) {
         return HAL_ERROR;
     }
@@ -54,6 +56,8 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
     CAN_ResetStatistics(&lv_can_stats);
 
     lv_can_initialized = 1;
+#endif
+
     return HAL_OK;
 }
 
@@ -67,6 +71,7 @@ void LV_CAN_ManagerTask(void *argument){
 
   for (;;) {
 
+#ifdef LV_CAN_MANAGER_ENABLED
     // No RX on LV bus
 
     while (osMessageQueueGet(LV_CAN_TxQueueHandle, &tx_message, NULL, 0) == osOK) {
@@ -101,6 +106,8 @@ void LV_CAN_ManagerTask(void *argument){
             lv_can_stats.tx_error_count++;
         }
     }
+    
+#endif
 
     osDelay(1);
 

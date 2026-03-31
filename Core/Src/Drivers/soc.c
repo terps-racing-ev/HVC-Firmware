@@ -20,8 +20,10 @@
 #include "flash.h"
 
 static uint32_t last_processed_timestamp = 0;
-
-#define SOC_WAIT_FOR_OCV_RESTING 1 // Implement when RTC is alive
+uint16_t soc_start_pct; // Start SOC value
+uint32_t soc_start_a_ms; // Start SOC converted to A*ms
+uint16_t soc_pct;   // SOC as % of total possible
+int32_t delta_capacity_a_ms; // A * ms, Total acc capacity that's entered since init in, - means out
 
 // TODO: fill in
 OCV_Voltage_Lookup ocv_lookup_table[] = {
@@ -34,6 +36,9 @@ size_t ocv_lookup_table_size = sizeof(ocv_lookup_table) / sizeof(OCV_Voltage_Loo
  * @brief Initializes charged/discharged capacity
  */
 void SOC_Init(void) {
+    soc_start_pct = 0;
+    soc_start_a_ms =  0;
+    soc_pct = 0;
     delta_capacity_a_ms = 0; // Initialize capacity used/gained to 0
 }
 
