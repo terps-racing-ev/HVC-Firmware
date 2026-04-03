@@ -183,12 +183,39 @@ void test_STATE_MANAGER_Task_sends_state_on_both_buses_and_delays(void)
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetLvCanSendCallCount());
     TEST_ASSERT_EQUAL_UINT32(CAN_ID_STATE, Test_GetLastBmsCanId());
     TEST_ASSERT_EQUAL_UINT32(CAN_ID_STATE, Test_GetLastLvCanId());
-    TEST_ASSERT_EQUAL_UINT8(1, Test_GetLastBmsCanLength());
-    TEST_ASSERT_EQUAL_UINT8(1, Test_GetLastLvCanLength());
+    TEST_ASSERT_EQUAL_UINT8(5, Test_GetLastBmsCanLength());
+    TEST_ASSERT_EQUAL_UINT8(5, Test_GetLastLvCanLength());
     TEST_ASSERT_EQUAL_UINT8((uint8_t)OK, Test_GetLastBmsCanDataByte(0));
     TEST_ASSERT_EQUAL_UINT8((uint8_t)OK, Test_GetLastLvCanDataByte(0));
+    TEST_ASSERT_EQUAL_UINT8(0U, Test_GetLastBmsCanDataByte(1));
+    TEST_ASSERT_EQUAL_UINT8(0U, Test_GetLastBmsCanDataByte(2));
+    TEST_ASSERT_EQUAL_UINT8(0U, Test_GetLastBmsCanDataByte(3));
+    TEST_ASSERT_EQUAL_UINT8(0U, Test_GetLastBmsCanDataByte(4));
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDelayCallCount());
     TEST_ASSERT_EQUAL_UINT32(STATE_REFRESH_FREQ_MS, Test_GetLastDelayTicks());
+}
+
+void test_STATE_MANAGER_Task_packs_error_mask_in_state_message(void)
+{
+    ErrorMask expected_mask;
+
+    State_SetState(OK);
+    Test_SetKernelTick(1000);
+    ref_temp.value = 75.0f;
+    SetAllHeartbeats(1000);
+    acc[0]->heartbeat_last_update = 0;
+
+    RunStateManagerTaskSingleIteration();
+
+    expected_mask = ((ErrorMask)1U << BMS_ERR_REF_OVER_TEMP) |
+                    ((ErrorMask)1U << BMS_ERR_MODULE_TIMEOUT);
+
+    TEST_ASSERT_EQUAL_UINT8(5, Test_GetLastBmsCanLength());
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)ERRORED, Test_GetLastBmsCanDataByte(0));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)(expected_mask & 0xFFU), Test_GetLastBmsCanDataByte(1));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)((expected_mask >> 8U) & 0xFFU), Test_GetLastBmsCanDataByte(2));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)((expected_mask >> 16U) & 0xFFU), Test_GetLastBmsCanDataByte(3));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)((expected_mask >> 24U) & 0xFFU), Test_GetLastBmsCanDataByte(4));
 }
 
 int main(void)
@@ -204,6 +231,7 @@ int main(void)
     RUN_TEST(test_STATE_MANAGER_Transition_ok_to_errored_when_both_faults_present);
     RUN_TEST(test_STATE_MANAGER_Transition_errored_to_ok_when_faults_clear);
     RUN_TEST(test_STATE_MANAGER_Task_sends_state_on_both_buses_and_delays);
+    RUN_TEST(test_STATE_MANAGER_Task_packs_error_mask_in_state_message);
     return UNITY_END();
 }
 

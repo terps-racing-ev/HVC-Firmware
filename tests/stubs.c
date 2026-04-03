@@ -484,7 +484,7 @@ HAL_StatusTypeDef IO_InitCurrent(Current *c, const char *mutex_name)
     return HAL_OK;
 }
 
-uint8_t IO_GetDigitalIO(DigitalIO *dio)
+bool IO_GetDigitalIO(DigitalIO *dio)
 {
     return dio->value;
 }
@@ -504,9 +504,9 @@ int32_t IO_GetCurrent(Current *c)
     return c->value;
 }
 
-void IO_SetDigitalIO(DigitalIO *dio, uint16_t value)
+void IO_SetDigitalIO(DigitalIO *dio, bool value)
 {
-    dio->value = (uint8_t)value;
+    dio->value = value;
     dio->last_updated = osKernelGetTickCount();
 }
 

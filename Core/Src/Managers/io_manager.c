@@ -45,10 +45,10 @@ static void _IO_Handle_CurrSense_Fault(void);
 static void _IO_PackIOSummary(
     uint8_t *data, 
     uint8_t *length,
-    uint8_t sdc_val,
-    uint8_t imd_val,
+    bool sdc_val,
+    bool imd_val,
     float temp_val,
-    uint8_t bms_fault_val
+    bool bms_fault_val
 );
 static void _IO_PackCurrentSenseMessage(
     uint8_t *data,
@@ -117,19 +117,19 @@ static void _IO_LowPriority(void)
     uint8_t io_summary[8];
     uint8_t io_summary_len;
     float temp;
-    GPIO_PinState sdc_raw;
-    GPIO_PinState imd_raw;
+    bool sdc_raw;
+    bool imd_raw;
     uint16_t therm_raw;
 
     // Read SDC + IMD
-    sdc_raw = HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin);
-    imd_raw = HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin);
+    sdc_raw = (HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin) == GPIO_PIN_SET);
+    imd_raw = (HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin) == GPIO_PIN_SET);
     IO_SetDigitalIO(&sdc, sdc_raw);
     IO_SetDigitalIO(&imd, imd_raw);
 
     // Read Therm
     // TODO: handle HAL_ERROR return
-    _IO_ReadADCChannel(ADC_CHANNEL_8, &therm_raw);
+    _IO_ReadADCChannel(ADC_CHANNEL_15, &therm_raw);
     IO_SetAnalogIO(&therm, therm_raw);
 
     // Calculate and update temp value
@@ -163,7 +163,7 @@ static void _IO_Handle_CurrSense_Fault(void)
     uint16_t cs_high_raw_val;
     int32_t cs_low_val;
     int32_t cs_high_val;
-    uint8_t fault;
+    bool fault;
 
     // Write BMS Fault (1 is good)
     fault = IO_GetDigitalIO(&bms_fault);
@@ -241,10 +241,10 @@ static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
 static void _IO_PackIOSummary(
     uint8_t *data, 
     uint8_t *length,
-    uint8_t sdc_val,
-    uint8_t imd_val,
+    bool sdc_val,
+    bool imd_val,
     float temp_val,
-    uint8_t bms_fault_val
+    bool bms_fault_val
 ){
     int16_t temp_c_x100;
 

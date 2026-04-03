@@ -64,7 +64,7 @@ const osThreadAttr_t LED_Blink_attributes = {
   .cb_size = sizeof(LED_BlinkControlBlock),
   .stack_mem = &LED_BlinkBuffer[0],
   .stack_size = sizeof(LED_BlinkBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for LV_CANManagerTa */
 osThreadId_t LV_CANManagerTaHandle;
@@ -112,7 +112,7 @@ const osThreadAttr_t State_Manager_attributes = {
   .cb_size = sizeof(State_ManagerControlBlock),
   .stack_mem = &State_ManagerBuffer[0],
   .stack_size = sizeof(State_ManagerBuffer),
-  .priority = (osPriority_t) osPriorityRealtime,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* Definitions for CAN */
 osMutexId_t CANHandle;
@@ -510,11 +510,11 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -614,6 +614,10 @@ void LED_BlinkTask(void *argument)
   for(;;)
   {
     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+    IO_SetDigitalIO(&bms_fault, true);
+    osDelay(500);
+    HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+    IO_SetDigitalIO(&bms_fault, false);
     osDelay(500);
   }
   /* USER CODE END 5 */

@@ -79,8 +79,8 @@ HAL_StatusTypeDef IO_InitCurrent(Current* current, const char* mutex_name) {
     return HAL_OK;
 }
 
-uint8_t IO_GetDigitalIO(DigitalIO *dio){
-    uint8_t val;
+bool IO_GetDigitalIO(DigitalIO *dio){
+    bool val;
 
     osMutexAcquire(dio->mutex, osWaitForever);
     val = dio->value;
@@ -119,7 +119,7 @@ int32_t IO_GetCurrent(Current *c) {
     return curr;
 }
 
-void IO_SetDigitalIO(DigitalIO *dio, uint16_t value) {
+void IO_SetDigitalIO(DigitalIO *dio, bool value) {
     uint32_t now = osKernelGetTickCount();
 
     osMutexAcquire(dio->mutex, osWaitForever);

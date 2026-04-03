@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+"""Generate a DBC file for HVC IO/state CAN messages.
+
+The script reads CAN IDs from Core/Inc/Config/can_id.h and emits a DBC with
+the IO summary, IO current, and state messages packed exactly as in firmware.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+from pathlib import Path
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_CAN_ID_HEADER = ROOT_DIR / "Core" / "Inc" / "Config" / "can_id.h"
+DEFAULT_STATE_HEADER = ROOT_DIR / "Core" / "Inc" / "Data" / "state.h"
+DEFAULT_OUTPUT = ROOT_DIR / "io_messages.dbc"
+
+CAN_ID_NAMES = (
+    "CAN_ID_IO_SUMMARY",
+    "CAN_ID_IO_CURRENT",
+    "CAN_ID_STATE",
+)
+
+
+def _parse_can_ids(header_path: Path) -> dict[str, int]:
+    """Extract selected CAN ID #defines from the header file."""
+    text = header_path.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_IO_CURRENT|CAN_ID_STATE)\s+"
+        r"(0x[0-9A-Fa-f]+|\d+)\b",
+        re.MULTILINE,
+    )
+
+    can_ids: dict[str, int] = {}
+    for name, raw_value in pattern.findall(text):
+        can_ids[name] = int(raw_value, 0)
+
+    missing = [name for name in CAN_ID_NAMES if name not in can_ids]
+    if missing:
+        missing_csv = ", ".join(missing)
+        raise ValueError(
+            f"Missing CAN ID define(s) in {header_path}: {missing_csv}"
+        )
+
+    return can_ids
+
+
+def _parse_error_bits(state_header_path: Path) -> list[tuple[str, int]]:
+    """Extract ErrorBit enum entries and resolved bit positions."""
+    text = state_header_path.read_text(encoding="utf-8")
+    enum_match = re.search(
+        r"typedef\s+enum\s*\{(?P<body>.*?)\}\s*ErrorBit\s*;",
+        text,
+        re.DOTALL,
+    )
+    if enum_match is None:
+        raise ValueError(f"Could not find ErrorBit enum in {state_header_path}")
+
+    body = enum_match.group("body")
+    body = re.sub(r"/\*.*?\*/", "", body, flags=re.DOTALL)
+
+    token_pattern = re.compile(
+        r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*(0x[0-9A-Fa-f]+|\d+))?\s*,?\s*$"
+    )
+
+    errors: list[tuple[str, int]] = []
+    next_value = 0
+    for raw_line in body.splitlines():
+        line = raw_line.split("//", 1)[0].strip()
+        if not line:
+            continue
+
+        match = token_pattern.match(line)
+        if match is None:
+            continue
+
+        name = match.group(1)
+        explicit_value = match.group(2)
+        if explicit_value is not None:
+            next_value = int(explicit_value, 0)
+
+        if name == "BMS_ERR_COUNT":
+            break
+        if name.startswith("BMS_ERR_"):
+            errors.append((name, next_value))
+
+        next_value += 1
+
+    if not errors:
+        raise ValueError(f"No BMS_ERR_* entries found in {state_header_path}")
+
+    return errors
+
+
+def _dbc_frame_id(can_id: int) -> int:
+    """Return DBC frame ID for an extended (29-bit) CAN identifier."""
+    if can_id < 0 or can_id > 0x1FFFFFFF:
+        raise ValueError(f"CAN ID out of 29-bit range: 0x{can_id:X}")
+    return can_id | 0x80000000
+
+
+def _error_signal_name(error_name: str) -> str:
+    """Convert enum name (BMS_ERR_*) to a compact DBC signal name."""
+    base = error_name
+    if base.startswith("BMS_ERR_"):
+        base = base[len("BMS_ERR_"):]
+
+    parts = [part for part in base.split("_") if part]
+    return "Err_" + "".join(part.title() for part in parts)
+
+
+def _generate_dbc_text(
+    io_summary_id: int,
+    io_current_id: int,
+    state_id: int,
+    error_bits: list[tuple[str, int]],
+    include_raw_error_mask: bool,
+    node_name: str,
+) -> str:
+    """Build DBC content for IO summary/current and state messages."""
+    io_summary_dbc_id = _dbc_frame_id(io_summary_id)
+    io_current_dbc_id = _dbc_frame_id(io_current_id)
+    state_dbc_id = _dbc_frame_id(state_id)
+
+    error_signal_lines: list[str] = []
+    error_value_lines: list[str] = []
+    for error_name, bit in error_bits:
+        if bit < 0 or bit > 31:
+            raise ValueError(f"Error bit out of range for ErrorMask: {error_name}={bit}")
+
+        signal_name = _error_signal_name(error_name)
+        start_bit = 8 + bit
+        error_signal_lines.append(
+            f' SG_ {signal_name} : {start_bit}|1@1+ (1,0) [0|1] "" Vector__XXX'
+        )
+        error_value_lines.append(
+            f'VAL_ {state_dbc_id} {signal_name} 0 "Inactive" 1 "Active" ;'
+        )
+
+    error_signals_block = "\n".join(error_signal_lines)
+    error_values_block = "\n".join(error_value_lines)
+    raw_error_mask_line = ""
+    if include_raw_error_mask:
+        raw_error_mask_line = ' SG_ BMS_ErrorMask : 8|32@1+ (1,0) [0|4294967295] "" Vector__XXX\n'
+
+    return f'''VERSION ""
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+    SG_MUL_VAL_
+
+BS_:
+
+BU_: {node_name}
+
+BO_ {io_summary_dbc_id} IO_Summary: 7 {node_name}
+ SG_ SDC_Closed : 0|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ IMD_Ok : 1|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ BMS_Fault_Ok : 2|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ Ref_Temp_C : 40|16@1- (0.01,0) [-327.68|327.67] "degC" Vector__XXX
+
+BO_ {io_current_dbc_id} IO_Current: 8 {node_name}
+ SG_ Current_Low_mA : 0|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
+ SG_ Current_High_mA : 32|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
+
+BO_ {state_dbc_id} BMS_State: 5 {node_name}
+ SG_ BMS_State : 0|8@1+ (1,0) [0|255] "" Vector__XXX
+{raw_error_mask_line}{error_signals_block}
+
+VAL_ {state_dbc_id} BMS_State 0 "PRE_INIT" 1 "OK" 2 "ERRORED" ;
+{error_values_block}
+'''
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Generate a DBC file for IO manager CAN messages."
+    )
+    parser.add_argument(
+        "--can-id-header",
+        type=Path,
+        default=DEFAULT_CAN_ID_HEADER,
+        help=f"Path to can_id.h (default: {DEFAULT_CAN_ID_HEADER})",
+    )
+    parser.add_argument(
+        "--state-header",
+        type=Path,
+        default=DEFAULT_STATE_HEADER,
+        help=f"Path to state.h (default: {DEFAULT_STATE_HEADER})",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help=f"Output DBC file path (default: {DEFAULT_OUTPUT})",
+    )
+    parser.add_argument(
+        "--node-name",
+        default="HVC",
+        help="Transmitter node name in the DBC (default: HVC)",
+    )
+    parser.add_argument(
+        "--include-raw-error-mask",
+        action="store_true",
+        help=(
+            "Include 32-bit BMS_ErrorMask signal in the state message. "
+            "This overlaps with per-bit decoded error signals and may break strict DBC parsers."
+        ),
+    )
+    args = parser.parse_args()
+
+    can_id_header = args.can_id_header.resolve()
+    state_header = args.state_header.resolve()
+    output_path = args.output.resolve()
+
+    can_ids = _parse_can_ids(can_id_header)
+    error_bits = _parse_error_bits(state_header)
+    dbc_text = _generate_dbc_text(
+        io_summary_id=can_ids["CAN_ID_IO_SUMMARY"],
+        io_current_id=can_ids["CAN_ID_IO_CURRENT"],
+        state_id=can_ids["CAN_ID_STATE"],
+        error_bits=error_bits,
+        include_raw_error_mask=args.include_raw_error_mask,
+        node_name=args.node_name,
+    )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(dbc_text, encoding="utf-8", newline="\n")
+
+    print(f"Generated DBC: {output_path}")
+    print(
+        f"Used CAN IDs: CAN_ID_IO_SUMMARY=0x{can_ids['CAN_ID_IO_SUMMARY']:08X}, "
+        f"CAN_ID_IO_CURRENT=0x{can_ids['CAN_ID_IO_CURRENT']:08X}, "
+        f"CAN_ID_STATE=0x{can_ids['CAN_ID_STATE']:08X}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -23,7 +23,7 @@
 Locked_State bms_state = {0};
 
 /* Private functions ---------------------------------------------------------*/
-static void _State_PackCanMessage(State state, uint8_t *data, uint8_t *length);
+static void _State_PackCanMessage(State state, ErrorMask errors, uint8_t *data, uint8_t *length);
 static State _State_Transition(State curr_state, ErrorMask errors);
 static ErrorMask _State_CheckErrors(void);
 
@@ -57,7 +57,7 @@ void State_ManagerTask(void *argument) {
         curr_state = _State_Transition(curr_state, errors);
 
 
-        _State_PackCanMessage(curr_state, data, &length);
+        _State_PackCanMessage(curr_state, errors, data, &length);
         BMS_CAN_SendMessage(
             CAN_ID_STATE,
             data,
@@ -135,20 +135,20 @@ static ErrorMask _State_CheckErrors(void) {
     return errors;
 }
 
-static void _State_PackCanMessage(State state, uint8_t *data, uint8_t *length)
+static void _State_PackCanMessage(State state, ErrorMask errors, uint8_t *data, uint8_t *length)
 {
     if ((data == NULL) || (length == NULL)) {
         return;
     }
 
     data[0] = (uint8_t)state;
-    data[1] = 0U;
-    data[2] = 0U;
-    data[3] = 0U;
-    data[4] = 0U;
+    data[1] = (uint8_t)(errors & 0xFFU);
+    data[2] = (uint8_t)((errors >> 8U) & 0xFFU);
+    data[3] = (uint8_t)((errors >> 16U) & 0xFFU);
+    data[4] = (uint8_t)((errors >> 24U) & 0xFFU);
     data[5] = 0U;
     data[6] = 0U;
     data[7] = 0U;
 
-    *length = 1U;
+    *length = 5U;
 }

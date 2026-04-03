@@ -64,15 +64,15 @@ void test_IO_Manager_Init_success(void)
     TEST_ASSERT_EQUAL_UINT32(9, Test_GetMutexNewCallCount());
 
     TEST_ASSERT_EQUAL_PTR(results[0], sdc.mutex);
-    TEST_ASSERT_EQUAL_UINT8(0, sdc.value);
+    TEST_ASSERT_FALSE(sdc.value);
     TEST_ASSERT_EQUAL_UINT32(0, sdc.last_updated);
 
     TEST_ASSERT_EQUAL_PTR(results[1], imd.mutex);
-    TEST_ASSERT_EQUAL_UINT8(0, imd.value);
+    TEST_ASSERT_FALSE(imd.value);
     TEST_ASSERT_EQUAL_UINT32(0, imd.last_updated);
 
     TEST_ASSERT_EQUAL_PTR(results[2], bms_fault.mutex);
-    TEST_ASSERT_EQUAL_UINT8(0, bms_fault.value);
+    TEST_ASSERT_FALSE(bms_fault.value);
     TEST_ASSERT_EQUAL_UINT32(0, bms_fault.last_updated);
 
     TEST_ASSERT_EQUAL_PTR(results[3], cs_low_raw.mutex);
@@ -136,7 +136,7 @@ void test_IO_ManagerTask_single_iteration_updates_io_and_sends_both_messages(voi
     int32_t expected_high = Curr_CalculateCurrentSenseHigh(adc_values[1]);
 
     InitIOManagerForTaskTests();
-    bms_fault.value = 1U;
+    bms_fault.value = true;
     Test_SetKernelTick(123U);
     Test_SetAdcValues(adc_values, 3);
     Test_SetGpioReadValues(gpio_reads, 2);
@@ -157,8 +157,8 @@ void test_IO_ManagerTask_single_iteration_updates_io_and_sends_both_messages(voi
     TEST_ASSERT_EQUAL_UINT16(adc_values[2], therm.value);
     TEST_ASSERT_EQUAL_INT32(expected_low, (int32_t)cs_low.value);
     TEST_ASSERT_EQUAL_INT32(expected_high, (int32_t)cs_high.value);
-    TEST_ASSERT_EQUAL_UINT8(GPIO_PIN_SET, sdc.value);
-    TEST_ASSERT_EQUAL_UINT8(GPIO_PIN_RESET, imd.value);
+    TEST_ASSERT_TRUE(sdc.value);
+    TEST_ASSERT_FALSE(imd.value);
     TEST_ASSERT_FLOAT_WITHIN(0.0001f, 25.0f, ref_temp.value);
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetGpioWriteCallCount());
     TEST_ASSERT_EQUAL(GPIO_PIN_SET, Test_GetLastGpioWriteState());
