@@ -109,8 +109,8 @@ float IO_GetTemp(Temp *t) {
     return val;
 }
 
-uint32_t IO_GetCurrent(Current *c) {
-    uint32_t curr;
+int32_t IO_GetCurrent(Current *c) {
+    int32_t curr;
 
     osMutexAcquire(c->mutex, osWaitForever);
     curr = c->value;
@@ -146,7 +146,7 @@ void IO_SetTemp(Temp *t, float value) {
     osMutexRelease(t->mutex);
 }
 
-void IO_SetCurrent(Current *c, uint32_t value) {
+void IO_SetCurrent(Current *c, int32_t value) {
     uint32_t now = osKernelGetTickCount();
 
     osMutexAcquire(c->mutex, osWaitForever);

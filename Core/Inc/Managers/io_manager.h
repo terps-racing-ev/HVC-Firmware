@@ -36,15 +36,9 @@
 HAL_StatusTypeDef IO_Manager_Init(void);
 
 /**
-  * @brief  Main IO manager task
+  * @brief  Combined IO manager task. Runs at the priority update rate and
+  *         also services the regular IO cadence.
   * @param  argument: Not used
   * @retval None
   */
 void IO_ManagerTask(void *argument);
-
-/**
-  * @brief  Main IO manager task (for priority io values). Runs at faster rate.
-  * @param  argument: Not used
-  * @retval None
-  */
-void IO_PriorityManagerTask(void *argument);

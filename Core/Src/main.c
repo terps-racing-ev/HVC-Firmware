@@ -100,18 +100,6 @@ const osThreadAttr_t IO_Manager_attributes = {
   .cb_size = sizeof(IO_ManagerTaskControlBlock),
   .stack_mem = &IO_ManagerTaskBuffer[0],
   .stack_size = sizeof(IO_ManagerTaskBuffer),
-  .priority = (osPriority_t) osPriorityHigh,
-};
-/* Definitions for IO_PriorityMana */
-osThreadId_t IO_PriorityManaHandle;
-uint32_t IO_PriorityManaBuffer[ 128 ];
-osStaticThreadDef_t IO_PriorityManaControlBlock;
-const osThreadAttr_t IO_PriorityMana_attributes = {
-  .name = "IO_PriorityMana",
-  .cb_mem = &IO_PriorityManaControlBlock,
-  .cb_size = sizeof(IO_PriorityManaControlBlock),
-  .stack_mem = &IO_PriorityManaBuffer[0],
-  .stack_size = sizeof(IO_PriorityManaBuffer),
   .priority = (osPriority_t) osPriorityRealtime,
 };
 /* Definitions for State_Manager */
@@ -147,7 +135,6 @@ void LED_BlinkTask(void *argument);
 extern void LV_CAN_ManagerTask(void *argument);
 extern void BMS_CAN_ManagerTask(void *argument);
 extern void IO_ManagerTask(void *argument);
-extern void IO_PriorityManagerTask(void *argument);
 extern void State_ManagerTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -246,9 +233,6 @@ int main(void)
 
   /* creation of IO_Manager */
   IO_ManagerHandle = osThreadNew(IO_ManagerTask, NULL, &IO_Manager_attributes);
-
-  /* creation of IO_PriorityMana */
-  IO_PriorityManaHandle = osThreadNew(IO_PriorityManagerTask, NULL, &IO_PriorityMana_attributes);
 
   /* creation of State_Manager */
   State_ManagerHandle = osThreadNew(State_ManagerTask, NULL, &State_Manager_attributes);
@@ -459,8 +443,8 @@ static void MX_COMP2_Init(void)
 
   /* USER CODE END COMP2_Init 1 */
   hcomp2.Instance = COMP2;
-  hcomp2.Init.InvertingInput = COMP_INPUT_MINUS_IO2;
-  hcomp2.Init.NonInvertingInput = COMP_INPUT_PLUS_IO1;
+  hcomp2.Init.InvertingInput = COMP_INPUT_MINUS_IO3;
+  hcomp2.Init.NonInvertingInput = COMP_INPUT_PLUS_IO3;
   hcomp2.Init.OutputPol = COMP_OUTPUTPOL_NONINVERTED;
   hcomp2.Init.Hysteresis = COMP_HYSTERESIS_HIGH;
   hcomp2.Init.BlankingSrce = COMP_BLANKINGSRC_NONE;
@@ -526,11 +510,11 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -575,18 +559,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : EMeter_Sig_Pin */
-  GPIO_InitStruct.Pin = EMeter_Sig_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(EMeter_Sig_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : LV_CAN_INT_Pin */
-  GPIO_InitStruct.Pin = LV_CAN_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(LV_CAN_INT_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pin : PA8 */
   GPIO_InitStruct.Pin = GPIO_PIN_8;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -608,9 +580,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+  /*Configure GPIO pin : LV_CAN_INT_Pin */
+  GPIO_InitStruct.Pin = LV_CAN_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(LV_CAN_INT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : EMeter_Therm_Pin */
+  GPIO_InitStruct.Pin = EMeter_Therm_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(EMeter_Therm_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

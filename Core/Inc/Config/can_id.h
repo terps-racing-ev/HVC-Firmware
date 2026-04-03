@@ -7,6 +7,7 @@
 #define CAN_ID_STATE        0x004001F1
 
 #define CAN_ID_ERRORED_PANIC 0x004001F2 // TODO: figure out CAN ID
+#define CAN_ID_IO_CURRENT    0x004001F3
 
 
 /* BMB IDs -------------------------------------------------------------------*/

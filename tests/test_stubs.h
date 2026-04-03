@@ -26,6 +26,8 @@ void Test_SetKernelTick(uint32_t tick);
 void Test_SetDelayHook(Test_DelayHook hook);
 void Test_SetAdcStartResult(HAL_StatusTypeDef result);
 void Test_SetCompStartResult(HAL_StatusTypeDef result);
+void Test_SetAdcValues(const uint32_t *values, size_t count);
+void Test_SetGpioReadValues(const GPIO_PinState *values, size_t count);
 
 uint32_t Test_GetBmsCanSendCallCount(void);
 uint32_t Test_GetLvCanSendCallCount(void);
@@ -35,7 +37,10 @@ uint8_t Test_GetLastBmsCanDataByte(uint8_t index);
 uint32_t Test_GetLastLvCanId(void);
 uint8_t Test_GetLastLvCanLength(void);
 uint8_t Test_GetLastLvCanDataByte(uint8_t index);
+uint32_t Test_GetLvCanSendCallCountForId(uint32_t id);
 uint32_t Test_GetDelayCallCount(void);
 uint32_t Test_GetLastDelayTicks(void);
+uint32_t Test_GetGpioWriteCallCount(void);
+GPIO_PinState Test_GetLastGpioWriteState(void);
 
 #endif /* TEST_STUBS_H */

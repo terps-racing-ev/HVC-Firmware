@@ -47,11 +47,11 @@ HAL_StatusTypeDef IO_InitCurrent(Current* current, const char* mutex_name);
 uint8_t IO_GetDigitalIO(DigitalIO *dio);
 uint16_t IO_GetAnalogIO(AnalogIO *aio);
 float IO_GetTemp(Temp *t);
-uint32_t IO_GetCurrent(Current *c);
+int32_t IO_GetCurrent(Current *c);
 void IO_SetDigitalIO(DigitalIO *dio, uint16_t value);
 void IO_SetAnalogIO(AnalogIO *aio, uint16_t value);
 void IO_SetTemp(Temp *t, float value);
-void IO_SetCurrent(Current *c, uint32_t value);
+void IO_SetCurrent(Current *c, int32_t value);
 
 
 

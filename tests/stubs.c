@@ -27,6 +27,14 @@ static uint8_t can_get_rx_dlc = 0;
 
 static HAL_StatusTypeDef adc_start_result = HAL_OK;
 static HAL_StatusTypeDef comp_start_result = HAL_OK;
+static uint32_t adc_values[64];
+static size_t adc_value_count = 0;
+static size_t adc_value_index = 0;
+static GPIO_PinState gpio_read_values[16];
+static size_t gpio_read_value_count = 0;
+static size_t gpio_read_value_index = 0;
+static uint32_t gpio_write_call_count = 0;
+static GPIO_PinState last_gpio_write_state = GPIO_PIN_RESET;
 
 static uint32_t kernel_tick = 0;
 static Test_DelayHook delay_hook = NULL;
@@ -55,6 +63,10 @@ static uint8_t bms_can_last_len = 0;
 static uint32_t lv_can_last_id = 0;
 static uint8_t lv_can_last_data[8] = {0};
 static uint8_t lv_can_last_len = 0;
+static uint32_t bms_can_id_history[64] = {0};
+static size_t bms_can_id_history_count = 0;
+static uint32_t lv_can_id_history[64] = {0};
+static size_t lv_can_id_history_count = 0;
 
 void Test_Stubs_Reset(void)
 {
@@ -72,6 +84,12 @@ void Test_Stubs_Reset(void)
     can_get_rx_dlc = 0;
     adc_start_result = HAL_OK;
     comp_start_result = HAL_OK;
+    adc_value_count = 0;
+    adc_value_index = 0;
+    gpio_read_value_count = 0;
+    gpio_read_value_index = 0;
+    gpio_write_call_count = 0;
+    last_gpio_write_state = GPIO_PIN_RESET;
     kernel_tick = 0;
     delay_hook = NULL;
     delay_call_count = 0;
@@ -82,6 +100,8 @@ void Test_Stubs_Reset(void)
     bms_can_last_len = 0;
     lv_can_last_id = 0;
     lv_can_last_len = 0;
+    bms_can_id_history_count = 0;
+    lv_can_id_history_count = 0;
     memset(bms_can_last_data, 0, sizeof(bms_can_last_data));
     memset(lv_can_last_data, 0, sizeof(lv_can_last_data));
     io_initialized = 0;
@@ -168,6 +188,26 @@ void Test_SetAdcStartResult(HAL_StatusTypeDef result)
 void Test_SetCompStartResult(HAL_StatusTypeDef result)
 {
     comp_start_result = result;
+}
+
+void Test_SetAdcValues(const uint32_t *values, size_t count)
+{
+    size_t i = 0;
+    adc_value_count = (count > 64) ? 64 : count;
+    for (i = 0; i < adc_value_count; i++) {
+        adc_values[i] = values[i];
+    }
+    adc_value_index = 0;
+}
+
+void Test_SetGpioReadValues(const GPIO_PinState *values, size_t count)
+{
+    size_t i = 0;
+    gpio_read_value_count = (count > 16) ? 16 : count;
+    for (i = 0; i < gpio_read_value_count; i++) {
+        gpio_read_values[i] = values[i];
+    }
+    gpio_read_value_index = 0;
 }
 
 osMessageQueueId_t osMessageQueueNew(uint32_t msg_count, uint32_t msg_size, const void *attr)
@@ -306,6 +346,9 @@ HAL_StatusTypeDef HAL_ADC_PollForConversion(ADC_HandleTypeDef *hadc, uint32_t ti
 uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *hadc)
 {
     (void)hadc;
+    if (adc_value_index < adc_value_count) {
+        return adc_values[adc_value_index++];
+    }
     return 0;
 }
 
@@ -325,13 +368,17 @@ void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState Pin
 {
     (void)GPIOx;
     (void)GPIO_Pin;
-    (void)PinState;
+    gpio_write_call_count++;
+    last_gpio_write_state = PinState;
 }
 
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
 {
     (void)GPIOx;
     (void)GPIO_Pin;
+    if (gpio_read_value_index < gpio_read_value_count) {
+        return gpio_read_values[gpio_read_value_index++];
+    }
     return GPIO_PIN_RESET;
 }
 
@@ -452,7 +499,7 @@ float IO_GetTemp(Temp *t)
     return t->value;
 }
 
-uint32_t IO_GetCurrent(Current *c)
+int32_t IO_GetCurrent(Current *c)
 {
     return c->value;
 }
@@ -475,7 +522,7 @@ void IO_SetTemp(Temp *t, float value)
     t->last_updated = osKernelGetTickCount();
 }
 
-void IO_SetCurrent(Current *c, uint32_t value)
+void IO_SetCurrent(Current *c, int32_t value)
 {
     c->value = value;
     c->last_updated = osKernelGetTickCount();
@@ -498,6 +545,9 @@ __attribute__((weak)) HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t 
     lv_can_send_call_count++;
     lv_can_last_id = id;
     lv_can_last_len = length;
+    if (lv_can_id_history_count < 64U) {
+        lv_can_id_history[lv_can_id_history_count++] = id;
+    }
     if (data != NULL) {
         uint8_t copy_len = (length > 8U) ? 8U : length;
         memcpy(lv_can_last_data, data, copy_len);
@@ -511,6 +561,9 @@ __attribute__((weak)) HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t
     bms_can_send_call_count++;
     bms_can_last_id = id;
     bms_can_last_len = length;
+    if (bms_can_id_history_count < 64U) {
+        bms_can_id_history[bms_can_id_history_count++] = id;
+    }
     if (data != NULL) {
         uint8_t copy_len = (length > 8U) ? 8U : length;
         memcpy(bms_can_last_data, data, copy_len);
@@ -614,6 +667,20 @@ uint8_t Test_GetLastLvCanDataByte(uint8_t index)
     return 0U;
 }
 
+uint32_t Test_GetLvCanSendCallCountForId(uint32_t id)
+{
+    uint32_t count = 0;
+    size_t i = 0;
+
+    for (i = 0; i < lv_can_id_history_count; i++) {
+        if (lv_can_id_history[i] == id) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
 uint32_t Test_GetDelayCallCount(void)
 {
     return delay_call_count;
@@ -622,4 +689,14 @@ uint32_t Test_GetDelayCallCount(void)
 uint32_t Test_GetLastDelayTicks(void)
 {
     return last_delay_ticks;
+}
+
+uint32_t Test_GetGpioWriteCallCount(void)
+{
+    return gpio_write_call_count;
+}
+
+GPIO_PinState Test_GetLastGpioWriteState(void)
+{
+    return last_gpio_write_state;
 }
