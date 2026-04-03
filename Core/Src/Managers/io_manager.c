@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 
 #include "io_manager.h"
+#include "acc.h"
 #include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
 
@@ -164,6 +165,7 @@ static void _IO_Handle_CurrSense_Fault(void)
     int32_t cs_low_val;
     int32_t cs_high_val;
     bool fault;
+    uint32_t timestamp;
 
     // Write BMS Fault (1 is good)
     fault = IO_GetDigitalIO(&bms_fault);
@@ -182,6 +184,9 @@ static void _IO_Handle_CurrSense_Fault(void)
     IO_SetCurrent(&cs_low, cs_low_val);
     cs_high_val = Curr_CalculateCurrentSenseHigh(cs_high_raw_val);
     IO_SetCurrent(&cs_high, cs_high_val);
+
+    timestamp = osKernelGetTickCount();
+    (void)Acc_CurrSenseQueue_Push(cs_low_val, cs_high_val, timestamp, 0U);
 
     _IO_PackCurrentSenseMessage(
         current_summary,

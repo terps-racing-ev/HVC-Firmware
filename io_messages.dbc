@@ -49,6 +49,9 @@ BO_ 2151678449 BMS_State: 5 HVC
  SG_ Err_RefOverTemp : 8|1@1+ (1,0) [0|1] "" Vector__XXX
  SG_ Err_ModuleTimeout : 9|1@1+ (1,0) [0|1] "" Vector__XXX
 
+BO_ 2151678452 SOC_Delta: 8 HVC
+ SG_ SOC_Delta_Ams : 0|64@1- (1,0) [-9223372036854775808|9223372036854775807] "A*ms" Vector__XXX
+
 VAL_ 2151678449 BMS_State 0 "PRE_INIT" 1 "OK" 2 "ERRORED" ;
 VAL_ 2151678449 Err_RefOverTemp 0 "Inactive" 1 "Active" ;
 VAL_ 2151678449 Err_ModuleTimeout 0 "Inactive" 1 "Active" ;

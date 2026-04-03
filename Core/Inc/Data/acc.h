@@ -32,8 +32,15 @@ typedef struct {
     AmbientTemps amb_temps;
 } Acc_Module;
 
+typedef struct {
+    int32_t cs_low;
+    int32_t cs_high;
+    uint32_t timestamp;
+} Acc_CurrSenseSample_t;
+
 /* Public variables  --------------------------------------------------------*/
 #define NUM_ACC_MODULES 6
+#define ACC_CURR_SENSE_QUEUE_SIZE 32U
 
 extern Acc_Module module_0;
 extern Acc_Module module_1;
@@ -109,5 +116,21 @@ void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps);
  * @param amb_temps Input pointer containing ambient temperature data.
  */
 void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps);
+
+/**
+ * @brief Pushes current-sense values and timestamp to the ACC-owned queue.
+ *
+ * @param cs_low Low-side current sample.
+ * @param cs_high High-side current sample.
+ * @param timestamp Tick timestamp for this sample.
+ * @param timeout_ms Timeout for queue push (ms).
+ * @return HAL_StatusTypeDef Queue operation status.
+ */
+HAL_StatusTypeDef Acc_CurrSenseQueue_Push(
+    int32_t cs_low,
+    int32_t cs_high,
+    uint32_t timestamp,
+    uint32_t timeout_ms
+);
 
 #endif

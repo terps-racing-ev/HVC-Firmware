@@ -18,6 +18,13 @@
 /* USER CODE END Header */
 
 #include "acc_manager.h"
+#include "soc.h"
+#include "can.h"
+#include "can_id.h"
+
+static osMessageQueueId_t Acc_CurrSenseQueueHandle = NULL;
+
+static void _Acc_PackSocDeltaMessage(uint8_t *data, uint8_t *length, int64_t soc_delta);
 
 Acc_Module module_0;
 Acc_Module module_1;
@@ -34,3 +41,111 @@ Acc_Module *acc[6] = {
     &module_4,
     &module_5
 };
+
+HAL_StatusTypeDef Acc_Manager_Init(void)
+{
+  uint32_t i;
+
+  for (i = 0U; i < NUM_ACC_MODULES; i++) {
+    *acc[i] = (Acc_Module){0};
+    acc[i]->mutex = osMutexNew(NULL);
+    if (acc[i]->mutex == NULL) {
+      return HAL_ERROR;
+    }
+  }
+
+  Acc_CurrSenseQueueHandle = osMessageQueueNew(
+    ACC_CURR_SENSE_QUEUE_SIZE,
+    sizeof(Acc_CurrSenseSample_t),
+    NULL
+  );
+  if (Acc_CurrSenseQueueHandle == NULL) {
+    return HAL_ERROR;
+  }
+
+  if (Soc_Init() != HAL_OK) {
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}
+
+void Acc_ManagerTask(void *argument)
+{
+  Acc_CurrSenseSample_t sample;
+  int64_t soc_delta;
+  uint8_t soc_data[8];
+  uint8_t soc_len;
+
+  (void)argument;
+
+  for (;;) {
+    while (osMessageQueueGet(Acc_CurrSenseQueueHandle, &sample, NULL, 0U) == osOK) {
+      Soc_UpdateDeltaFromCurrSample(sample.cs_low, sample.cs_high, sample.timestamp);
+    }
+
+    Soc_GetDelta(&soc_delta);
+    _Acc_PackSocDeltaMessage(soc_data, &soc_len, soc_delta);
+    (void)LV_CAN_SendMessage(
+      CAN_ID_SOC,
+      soc_data,
+      soc_len,
+      CAN_PRIORITY_NORMAL
+    );
+
+    osDelay(ACC_UPDATE_FREQ_MS);
+  }
+}
+
+HAL_StatusTypeDef Acc_CurrSenseQueue_Push(
+  int32_t cs_low,
+  int32_t cs_high,
+  uint32_t timestamp,
+  uint32_t timeout_ms
+)
+{
+  Acc_CurrSenseSample_t sample;
+  osStatus_t status;
+
+  if (Acc_CurrSenseQueueHandle == NULL) {
+    return HAL_ERROR;
+  }
+
+  sample.cs_low = cs_low;
+  sample.cs_high = cs_high;
+  sample.timestamp = timestamp;
+
+  status = osMessageQueuePut(Acc_CurrSenseQueueHandle, &sample, 0U, timeout_ms);
+  if (status == osOK) {
+    return HAL_OK;
+  }
+  if (status == osErrorTimeout) {
+    return HAL_TIMEOUT;
+  }
+  if (status == osErrorResource) {
+    return HAL_BUSY;
+  }
+
+  return HAL_ERROR;
+}
+
+static void _Acc_PackSocDeltaMessage(uint8_t *data, uint8_t *length, int64_t soc_delta)
+{
+  uint64_t soc_u;
+
+  if ((data == NULL) || (length == NULL)) {
+    return;
+  }
+
+  soc_u = (uint64_t)soc_delta;
+
+  data[0] = (uint8_t)(soc_u & 0xFFU);
+  data[1] = (uint8_t)((soc_u >> 8U) & 0xFFU);
+  data[2] = (uint8_t)((soc_u >> 16U) & 0xFFU);
+  data[3] = (uint8_t)((soc_u >> 24U) & 0xFFU);
+  data[4] = (uint8_t)((soc_u >> 32U) & 0xFFU);
+  data[5] = (uint8_t)((soc_u >> 40U) & 0xFFU);
+  data[6] = (uint8_t)((soc_u >> 48U) & 0xFFU);
+  data[7] = (uint8_t)((soc_u >> 56U) & 0xFFU);
+  *length = 8U;
+}

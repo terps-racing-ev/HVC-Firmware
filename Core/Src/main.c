@@ -25,6 +25,7 @@
 #include "bms_can_manager.h"
 #include "lv_can_manager.h"
 #include "io_manager.h"
+#include "acc_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -212,6 +213,10 @@ int main(void)
   }
 
   if (LV_CAN_Manager_Init() != HAL_OK) {
+    Error_Handler();
+  }
+
+  if (Acc_Manager_Init() != HAL_OK) {
     Error_Handler();
   }
 

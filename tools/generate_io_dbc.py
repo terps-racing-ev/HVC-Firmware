@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a DBC file for HVC IO/state CAN messages.
+"""Generate a DBC file for HVC IO/state/SOC CAN messages.
 
 The script reads CAN IDs from Core/Inc/Config/can_id.h and emits a DBC with
-the IO summary, IO current, and state messages packed exactly as in firmware.
+the IO summary, IO current, state, and SOC messages packed exactly as in firmware.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ CAN_ID_NAMES = (
     "CAN_ID_IO_SUMMARY",
     "CAN_ID_IO_CURRENT",
     "CAN_ID_STATE",
+    "CAN_ID_SOC",
 )
 
 
@@ -28,7 +29,7 @@ def _parse_can_ids(header_path: Path) -> dict[str, int]:
     """Extract selected CAN ID #defines from the header file."""
     text = header_path.read_text(encoding="utf-8")
     pattern = re.compile(
-        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_IO_CURRENT|CAN_ID_STATE)\s+"
+        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_IO_CURRENT|CAN_ID_STATE|CAN_ID_SOC)\s+"
         r"(0x[0-9A-Fa-f]+|\d+)\b",
         re.MULTILINE,
     )
@@ -115,14 +116,16 @@ def _generate_dbc_text(
     io_summary_id: int,
     io_current_id: int,
     state_id: int,
+    soc_id: int,
     error_bits: list[tuple[str, int]],
     include_raw_error_mask: bool,
     node_name: str,
 ) -> str:
-    """Build DBC content for IO summary/current and state messages."""
+    """Build DBC content for IO summary/current, state, and SOC messages."""
     io_summary_dbc_id = _dbc_frame_id(io_summary_id)
     io_current_dbc_id = _dbc_frame_id(io_current_id)
     state_dbc_id = _dbc_frame_id(state_id)
+    soc_dbc_id = _dbc_frame_id(soc_id)
 
     error_signal_lines: list[str] = []
     error_value_lines: list[str] = []
@@ -195,6 +198,9 @@ BO_ {state_dbc_id} BMS_State: 5 {node_name}
  SG_ BMS_State : 0|8@1+ (1,0) [0|255] "" Vector__XXX
 {raw_error_mask_line}{error_signals_block}
 
+BO_ {soc_dbc_id} SOC_Delta: 8 {node_name}
+ SG_ SOC_Delta_Ams : 0|64@1- (1,0) [-9223372036854775808|9223372036854775807] "A*ms" Vector__XXX
+
 VAL_ {state_dbc_id} BMS_State 0 "PRE_INIT" 1 "OK" 2 "ERRORED" ;
 {error_values_block}
 '''
@@ -247,6 +253,7 @@ def main() -> int:
         io_summary_id=can_ids["CAN_ID_IO_SUMMARY"],
         io_current_id=can_ids["CAN_ID_IO_CURRENT"],
         state_id=can_ids["CAN_ID_STATE"],
+        soc_id=can_ids["CAN_ID_SOC"],
         error_bits=error_bits,
         include_raw_error_mask=args.include_raw_error_mask,
         node_name=args.node_name,
@@ -259,7 +266,8 @@ def main() -> int:
     print(
         f"Used CAN IDs: CAN_ID_IO_SUMMARY=0x{can_ids['CAN_ID_IO_SUMMARY']:08X}, "
         f"CAN_ID_IO_CURRENT=0x{can_ids['CAN_ID_IO_CURRENT']:08X}, "
-        f"CAN_ID_STATE=0x{can_ids['CAN_ID_STATE']:08X}"
+        f"CAN_ID_STATE=0x{can_ids['CAN_ID_STATE']:08X}, "
+        f"CAN_ID_SOC=0x{can_ids['CAN_ID_SOC']:08X}"
     )
     return 0
 

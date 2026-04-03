@@ -20,6 +20,9 @@
 #include "stm32l4xx_hal.h"
 #include "acc.h"
 
+
+#define ACC_UPDATE_FREQ_MS 10
+
 /**
   * @brief  Initialize acc manager
   * @retval HAL_StatusTypeDef
