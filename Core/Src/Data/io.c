@@ -73,6 +73,7 @@ HAL_StatusTypeDef IO_InitCurrent(Current* current, const char* mutex_name) {
         return HAL_ERROR;
     }
 
+    MovingAverage_Init(&current->ma, MA_WINDOW_SIZE);
     current-> value = 0;
     current->last_updated = 0;
 

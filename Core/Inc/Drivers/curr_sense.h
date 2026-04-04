@@ -24,11 +24,13 @@
 /**
  * @brief Convert current sense voltage from high channel to current in mA
  * @param adc_value: Raw reading from adc
+ * @param vref: ADC reference voltage in mV
  */
-int32_t Curr_CalculateCurrentSenseHigh(uint32_t adc_value);
+int32_t Curr_CalculateCurrentSenseHigh(uint32_t adc_value, uint32_t vref);
 
 /**
  * @brief Convert current sense voltage from low channel to current in mA
  * @param adc_value: Raw reading from adc
+ * @param vref: ADC reference voltage in mV
  */
-int32_t Curr_CalculateCurrentSenseLow(uint32_t adc_value);
+int32_t Curr_CalculateCurrentSenseLow(uint32_t adc_value, uint32_t vref);

@@ -3,6 +3,7 @@
 
 #include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
+#include "moving_average.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
@@ -36,7 +37,8 @@ typedef struct {
 
 typedef struct {
     osMutexId_t mutex;          /**< Mutex for thread-safe access */
-    uint32_t value;             /**< Current in mV */
+    MovingAverage_Data_t ma;    /**< Moving average for filtering */
+    int32_t value;              /**< Filtered current in mA */
     uint32_t last_updated;
 } Current;
 

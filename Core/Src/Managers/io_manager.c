@@ -41,6 +41,7 @@ Current cs_high = {0};
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
 static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out);
+static uint32_t _IO_CalculateVREF(void);
 static void _IO_LowPriority(void);
 static void _IO_Handle_CurrSense_Fault(void);
 static void _IO_PackIOSummary(
@@ -160,10 +161,13 @@ static void _IO_Handle_CurrSense_Fault(void)
 {
     uint8_t current_summary[8];
     uint8_t current_summary_len;
+    uint32_t vref;
     uint16_t cs_low_raw_val;
     uint16_t cs_high_raw_val;
     int32_t cs_low_val;
     int32_t cs_high_val;
+    int32_t cs_low_filt_val;
+    int32_t cs_high_filt_val;
     bool fault;
     uint32_t timestamp;
 
@@ -172,6 +176,9 @@ static void _IO_Handle_CurrSense_Fault(void)
     if (fault) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
     else HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
 
+    // Calculate ADC reference voltage
+    vref = _IO_CalculateVREF();
+    
     // Read CS_LOW (Channel 5 - PA0)
     _IO_ReadADCChannel(ADC_CHANNEL_5, &cs_low_raw_val);
     IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
@@ -179,20 +186,26 @@ static void _IO_Handle_CurrSense_Fault(void)
     _IO_ReadADCChannel(ADC_CHANNEL_6, &cs_high_raw_val);
     IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
 
+    // Calculate cs values
+    cs_low_val = Curr_CalculateCurrentSenseLow(cs_low_raw_val, vref);
+    cs_high_val = Curr_CalculateCurrentSenseHigh(cs_high_raw_val, vref);
+
+    // Update moving average
+    cs_low_filt_val = MovingAverage_Update(&cs_low.ma, cs_low_val);
+    cs_high_filt_val = MovingAverage_Update(&cs_high.ma, cs_high_val);
+    
     // Set cs values
-    cs_low_val = Curr_CalculateCurrentSenseLow(cs_low_raw_val);
-    IO_SetCurrent(&cs_low, cs_low_val);
-    cs_high_val = Curr_CalculateCurrentSenseHigh(cs_high_raw_val);
-    IO_SetCurrent(&cs_high, cs_high_val);
+    IO_SetCurrent(&cs_low, cs_low_filt_val);
+    IO_SetCurrent(&cs_high, cs_high_filt_val);
 
     timestamp = osKernelGetTickCount();
-    (void)Acc_CurrSenseQueue_Push(cs_low_val, cs_high_val, timestamp, 0U);
+    (void)Acc_CurrSenseQueue_Push(cs_low_filt_val, cs_high_filt_val, timestamp, 0U);
 
     _IO_PackCurrentSenseMessage(
         current_summary,
         &current_summary_len,
-        cs_low_val,
-        cs_high_val
+        cs_low_filt_val,
+        cs_high_filt_val
     );
     LV_CAN_SendMessage(
         CAN_ID_IO_CURRENT,
@@ -241,6 +254,23 @@ static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
     
     *out = HAL_ADC_GetValue(&hadc1);
     return HAL_OK;
+}
+
+/**
+  * @brief  Calculate ADC reference voltage
+  * @retval Reference voltage in mV
+  */
+static uint32_t _IO_CalculateVREF(void)
+{
+    uint16_t vref_adc_value;
+	uint32_t vref_voltage = 0;
+
+    if (_IO_ReadADCChannel(ADC_CHANNEL_VREFINT, &vref_adc_value) == HAL_OK) {
+		vref_voltage = __HAL_ADC_CALC_VREFANALOG_VOLTAGE(vref_adc_value, ADC_RESOLUTION_12B);
+	}
+
+    return vref_voltage;
+
 }
 
 static void _IO_PackIOSummary(

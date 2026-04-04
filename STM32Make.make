@@ -78,6 +78,7 @@ C_SOURCES =  \
 Core/Src/Data/acc.c \
 Core/Src/Data/can.c \
 Core/Src/Data/io.c \
+Core/Src/Data/moving_average.c \
 Core/Src/Data/soc.c \
 Core/Src/Data/state.c \
 Core/Src/Drivers/bmb.c \
