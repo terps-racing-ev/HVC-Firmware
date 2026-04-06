@@ -210,14 +210,14 @@ MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
 AS_DEFS = 
 
 # C defines
-C_DEFS =  \
+C_DEFS ?=  \
 -DSTM32L432xx \
 -DSTM32_THREAD_SAFE_STRATEGY=4 \
 -DUSE_HAL_DRIVER
 
 
 # CXX defines
-CXX_DEFS =  \
+CXX_DEFS ?=  \
 -DSTM32L432xx \
 -DSTM32_THREAD_SAFE_STRATEGY=4 \
 -DUSE_HAL_DRIVER
@@ -269,7 +269,7 @@ CXXFLAGS += $(ASSEMBLER_LIST_OUTPUT_FLAG)
 # LDFLAGS
 #######################################
 # link script
-LDSCRIPT = STM32L432XX_FLASH.ld
+LDSCRIPT ?= STM32L432XX_FLASH.ld
 
 # libraries
 LIBS = -lc -lm -lnosys 
