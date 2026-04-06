@@ -27,22 +27,6 @@ static osMessageQueueId_t Acc_CurrSenseQueueHandle = NULL;
 static void _Acc_PackSocDeltaMessage(uint8_t *data, uint8_t *length, int64_t soc_delta);
 static void _Acc_PackSummaryMessage(uint8_t *data, uint8_t *length, const Acc_Summary_t *summary);
 
-Acc_Module module_0;
-Acc_Module module_1;
-Acc_Module module_2;
-Acc_Module module_3;
-Acc_Module module_4;
-Acc_Module module_5;
-
-Acc_Module *acc[6] = {
-    &module_0,
-    &module_1,
-    &module_2,
-    &module_3,
-    &module_4,
-    &module_5
-};
-
 HAL_StatusTypeDef Acc_Manager_Init(void)
 {
   uint32_t i;

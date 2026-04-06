@@ -4,6 +4,22 @@
 Acc_Summary_t acc_summary = {0};
 static uint8_t acc_summary_valid = 0U;
 
+Acc_Module module_0 = {0};
+Acc_Module module_1 = {0};
+Acc_Module module_2 = {0};
+Acc_Module module_3 = {0};
+Acc_Module module_4 = {0};
+Acc_Module module_5 = {0};
+
+Acc_Module *acc[6] = {
+    &module_0,
+    &module_1,
+    &module_2,
+    &module_3,
+    &module_4,
+    &module_5
+};
+
 /**
  * @brief Gets the last heartbeat timestamp for the ACC module.
  *

@@ -87,27 +87,37 @@ bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out){
     
     cmd = REMOVE_MODULE_ID(in->id);
     if (REMOVE_VOLTAGE_MSG_INDEX(cmd) != BMB_CAN_VOLTAGE_BASE) return false;
+    if (VOLTAGE_MSG_INDEX(cmd) > 5) return false;
 
     out->module = MODULE_ID(in->id);
    
     Acc_GetCellVoltages(acc[out->module], &out->cell_voltages);
 
-    uint8_t cell_id[CELLS_PER_VOLTAGE_MSG];
-    uint16_t volt[CELLS_PER_VOLTAGE_MSG];
+    uint8_t cell_id;
+    uint16_t volt;
     
     for (int i = 0; i < CELLS_PER_VOLTAGE_MSG; i++) {
         // cells 1-3 in message 0, 4-6 in message 1, 7-9 in message 2, and so on
-        cell_id[i] = CELLS_PER_VOLTAGE_MSG * VOLTAGE_MSG_INDEX(cmd) + i + 1;
+        cell_id = CELLS_PER_VOLTAGE_MSG * VOLTAGE_MSG_INDEX(cmd) + i + 1;
         // first voltage in bytes 0-1, second voltage in bytes 2-3, third voltage in bytes 4-5 (mV)
-        volt[i] = (uint16_t)in->data[2 * i] | ((uint16_t)in->data[2 * i + 1] << 8);
+        volt = (uint16_t)in->data[2 * i] | ((uint16_t)in->data[2 * i + 1] << 8);
         
-        if ((out->cell_voltages.volt_min == 0) || (volt[i] < out->cell_voltages.volt_min)) {
-            out->cell_voltages.volt_min_cell_id = cell_id[i];
-            out->cell_voltages.volt_min = volt[i];
-        } else if (volt[i] > out->cell_voltages.volt_max) {
-            out->cell_voltages.volt_max_cell_id = cell_id[i];
-            out->cell_voltages.volt_max = volt[i];
+        // First pass
+        if (out->cell_voltages.volt_min == 0) {
+            out->cell_voltages.volt_min_cell_id = cell_id;
+            out->cell_voltages.volt_min = volt;  
+            out->cell_voltages.volt_max_cell_id = cell_id;
+            out->cell_voltages.volt_max = volt;
+        } else {
+            if (volt < out->cell_voltages.volt_min) {
+                out->cell_voltages.volt_min_cell_id = cell_id;
+                out->cell_voltages.volt_min = volt;
+            } else if (volt > out->cell_voltages.volt_max) {
+                out->cell_voltages.volt_max_cell_id = cell_id;
+                out->cell_voltages.volt_max = volt;
+            }
         }
+
     }
 
     return true;
