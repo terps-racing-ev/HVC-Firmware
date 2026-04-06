@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build App A+B",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "-f",
+        "dual_build.mk"
+      ],
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}
