@@ -60,11 +60,12 @@ static void _IO_PackCurrentSenseMessage(
 );
 
 HAL_StatusTypeDef IO_Manager_Init(void){
-    // Start hardware
-    if (HAL_ADC_Start(&hadc1) != HAL_OK) {
+    // Calibrate ADC
+    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) {
         return HAL_ERROR;
     }
 
+    // Start comparator
     if (HAL_COMP_Start(&hcomp2) != HAL_OK) {
         return HAL_ERROR;
     }
@@ -175,15 +176,15 @@ static void _IO_Handle_CurrSense_Fault(void)
     fault = IO_GetDigitalIO(&bms_fault);
     if (fault) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
     else HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
-
+    
     // Calculate ADC reference voltage
     vref = _IO_CalculateVREF();
-    
-    // Read CS_LOW (Channel 5 - PA0)
-    _IO_ReadADCChannel(ADC_CHANNEL_5, &cs_low_raw_val);
+
+    // Read CS_LOW (Channel 6 - PA1)
+    _IO_ReadADCChannel(ADC_CHANNEL_6, &cs_low_raw_val);
     IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
-    // Read CS_HIGH (Channel 6 - PA1)
-    _IO_ReadADCChannel(ADC_CHANNEL_6, &cs_high_raw_val);
+    // Read CS_HIGH (Channel 5 - PA0)
+    _IO_ReadADCChannel(ADC_CHANNEL_5, &cs_high_raw_val);
     IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
 
     // Calculate cs values
@@ -211,6 +212,23 @@ static void _IO_Handle_CurrSense_Fault(void)
         CAN_ID_IO_CURRENT,
         current_summary,
         current_summary_len,
+        CAN_PRIORITY_NORMAL
+    );
+
+    uint8_t debug[8];
+    debug[0] = cs_low_raw_val & 0xFF;
+    debug[1] = cs_low_raw_val >> 8;
+    debug[2] = cs_high_raw_val & 0xFF;
+    debug[3] = cs_high_raw_val >> 8;
+    debug[4] = vref & 0xFF;
+    debug[5] = (vref >> 8) & 0xFF;
+    debug[6] = (vref >> 16) & 0xFF;
+    debug[7] = vref >> 24;
+
+    LV_CAN_SendMessage(
+        0x000000DB,
+        debug,
+        8,
         CAN_PRIORITY_NORMAL
     );
 }
