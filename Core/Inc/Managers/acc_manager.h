@@ -21,7 +21,7 @@
 #include "acc.h"
 
 
-#define ACC_UPDATE_FREQ_MS 10
+#define ACC_UPDATE_FREQ_MS 100
 
 /**
   * @brief  Initialize acc manager

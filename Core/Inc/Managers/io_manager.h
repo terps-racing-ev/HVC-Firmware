@@ -26,8 +26,10 @@
 #include "curr_sense.h"
 #include "stm32l4xx_hal.h"
 
-#define IO_UPDATE_FREQ_MS 10
-#define IO_PRIORITY_UPDATE_FREQ_MS 1
+#define IO_UPDATE_FREQ_MS 100
+#define IO_PRIORITY_UPDATE_FREQ_MS 10
+
+#define ADC_SAMPLE_TIME ADC_SAMPLETIME_640CYCLES_5
 
 /**
   * @brief  Initialize IO manager

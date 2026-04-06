@@ -214,23 +214,6 @@ static void _IO_Handle_CurrSense_Fault(void)
         current_summary_len,
         CAN_PRIORITY_NORMAL
     );
-
-    uint8_t debug[8];
-    debug[0] = cs_low_raw_val & 0xFF;
-    debug[1] = cs_low_raw_val >> 8;
-    debug[2] = cs_high_raw_val & 0xFF;
-    debug[3] = cs_high_raw_val >> 8;
-    debug[4] = vref & 0xFF;
-    debug[5] = (vref >> 8) & 0xFF;
-    debug[6] = (vref >> 16) & 0xFF;
-    debug[7] = vref >> 24;
-
-    LV_CAN_SendMessage(
-        0x000000DB,
-        debug,
-        8,
-        CAN_PRIORITY_NORMAL
-    );
 }
 
 /**
@@ -244,7 +227,7 @@ static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel)
     
     sConfig.Channel = channel;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5; // Longer cycle time = higher impedance
+    sConfig.SamplingTime = ADC_SAMPLE_TIME; // Longer cycle time = higher impedance
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;

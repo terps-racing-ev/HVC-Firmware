@@ -1,6 +1,9 @@
 #include "acc.h"
 #include "cmsis_os.h"
 
+Acc_Summary_t acc_summary = {0};
+static uint8_t acc_summary_valid = 0U;
+
 /**
  * @brief Gets the last heartbeat timestamp for the ACC module.
  *
@@ -143,4 +146,84 @@ void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps){
         module->amb_temps = *amb_temps;
     }
     osMutexRelease(module->mutex);
+}
+
+HAL_StatusTypeDef Acc_CalculateSummary(void)
+{
+    CellVoltages module_voltages;
+    CellTemps module_temps;
+    Acc_Summary_t next_summary;
+    uint32_t i;
+    uint8_t has_valid_module = 0U;
+
+    for (i = 0U; i < NUM_ACC_MODULES; i++) {
+        if (acc[i] == NULL) {
+            continue;
+        }
+
+        Acc_GetCellVoltages(acc[i], &module_voltages);
+        Acc_GetCellTemps(acc[i], &module_temps);
+
+        if (has_valid_module == 0U) {
+            next_summary.volt_min = module_voltages.volt_min;
+            next_summary.volt_max = module_voltages.volt_max;
+            next_summary.temp_min = module_temps.temp_min;
+            next_summary.temp_max = module_temps.temp_max;
+            has_valid_module = 1U;
+            continue;
+        }
+
+        if (module_voltages.volt_min < next_summary.volt_min) {
+            next_summary.volt_min = module_voltages.volt_min;
+        }
+        if (module_voltages.volt_max > next_summary.volt_max) {
+            next_summary.volt_max = module_voltages.volt_max;
+        }
+        if (module_temps.temp_min < next_summary.temp_min) {
+            next_summary.temp_min = module_temps.temp_min;
+        }
+        if (module_temps.temp_max > next_summary.temp_max) {
+            next_summary.temp_max = module_temps.temp_max;
+        }
+    }
+
+    if (has_valid_module == 0U) {
+        return HAL_ERROR;
+    }
+
+    return Acc_SetSummary(&next_summary);
+}
+
+HAL_StatusTypeDef Acc_GetSummary(Acc_Summary_t *summary)
+{
+    if ((summary == NULL) || (acc_summary_valid == 0U) || (acc_summary.mutex == NULL)) {
+        return HAL_ERROR;
+    }
+
+    osMutexAcquire(acc_summary.mutex, osWaitForever);
+    summary->mutex = NULL;
+    summary->volt_min = acc_summary.volt_min;
+    summary->volt_max = acc_summary.volt_max;
+    summary->temp_min = acc_summary.temp_min;
+    summary->temp_max = acc_summary.temp_max;
+    osMutexRelease(acc_summary.mutex);
+
+    return HAL_OK;
+}
+
+HAL_StatusTypeDef Acc_SetSummary(const Acc_Summary_t *summary)
+{
+    if ((summary == NULL) || (acc_summary.mutex == NULL)) {
+        return HAL_ERROR;
+    }
+
+    osMutexAcquire(acc_summary.mutex, osWaitForever);
+    acc_summary.volt_min = summary->volt_min;
+    acc_summary.volt_max = summary->volt_max;
+    acc_summary.temp_min = summary->temp_min;
+    acc_summary.temp_max = summary->temp_max;
+    acc_summary_valid = 1U;
+    osMutexRelease(acc_summary.mutex);
+
+    return HAL_OK;
 }

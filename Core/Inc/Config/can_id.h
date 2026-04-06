@@ -3,12 +3,13 @@
 
 /* HVC IDs  -------------------------------------------------------------------*/
 
-#define CAN_ID_IO_SUMMARY   0x004001F0
-#define CAN_ID_STATE        0x004001F1
+#define CAN_ID_IO_SUMMARY       0x004001F0
+#define CAN_ID_STATE            0x004001F1
 
-#define CAN_ID_ERRORED_PANIC 0x004001F2 // TODO: figure out CAN ID
-#define CAN_ID_IO_CURRENT    0x004001F3
-#define CAN_ID_SOC     0x004001F4
+#define CAN_ID_ERRORED_PANIC    0x004001F2 // TODO: figure out CAN ID
+#define CAN_ID_IO_CURRENT       0x004001F3
+#define CAN_ID_SOC              0x004001F4
+#define CAN_ID_ACC_SUMMARY      0x004001F5
 
 
 /* BMB IDs -------------------------------------------------------------------*/

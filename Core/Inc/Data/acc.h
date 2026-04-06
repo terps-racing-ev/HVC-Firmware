@@ -38,6 +38,14 @@ typedef struct {
     uint32_t timestamp;
 } Acc_CurrSenseSample_t;
 
+typedef struct {
+    osMutexId_t mutex;
+    uint16_t volt_min;
+    uint16_t volt_max;
+    float temp_min;
+    float temp_max;
+} Acc_Summary_t;
+
 /* Public variables  --------------------------------------------------------*/
 #define NUM_ACC_MODULES 6
 #define ACC_CURR_SENSE_QUEUE_SIZE 32U
@@ -50,6 +58,7 @@ extern Acc_Module module_4;
 extern Acc_Module module_5;
 
 extern Acc_Module *acc[NUM_ACC_MODULES];
+extern Acc_Summary_t acc_summary;
 
 /* Getters  --------------------------------------------------------*/
 /**
@@ -132,5 +141,28 @@ HAL_StatusTypeDef Acc_CurrSenseQueue_Push(
     uint32_t timestamp,
     uint32_t timeout_ms
 );
+
+/**
+ * @brief Calculates overall min/max cell voltage and temperature across all ACC modules.
+ *
+ * @return HAL_OK when calculation succeeds, HAL_ERROR when no valid module data is available.
+ */
+HAL_StatusTypeDef Acc_CalculateSummary(void);
+
+/**
+ * @brief Gets the most recently calculated ACC summary.
+ *
+ * @param summary Output pointer for summary values.
+ * @return HAL_OK when summary is available, HAL_ERROR if arguments are invalid or summary was not calculated yet.
+ */
+HAL_StatusTypeDef Acc_GetSummary(Acc_Summary_t *summary);
+
+/**
+ * @brief Sets the ACC summary values.
+ *
+ * @param summary Input pointer for summary values.
+ * @return HAL_OK when summary is updated, HAL_ERROR if arguments are invalid or summary mutex is not initialized.
+ */
+HAL_StatusTypeDef Acc_SetSummary(const Acc_Summary_t *summary);
 
 #endif

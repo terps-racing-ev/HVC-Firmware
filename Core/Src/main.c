@@ -115,6 +115,18 @@ const osThreadAttr_t State_Manager_attributes = {
   .stack_size = sizeof(State_ManagerBuffer),
   .priority = (osPriority_t) osPriorityHigh,
 };
+/* Definitions for Acc_Manager */
+osThreadId_t Acc_ManagerHandle;
+uint32_t AccManagerBuffer[ 128 ];
+osStaticThreadDef_t AccManagerControlBlock;
+const osThreadAttr_t Acc_Manager_attributes = {
+  .name = "Acc_Manager",
+  .cb_mem = &AccManagerControlBlock,
+  .cb_size = sizeof(AccManagerControlBlock),
+  .stack_mem = &AccManagerBuffer[0],
+  .stack_size = sizeof(AccManagerBuffer),
+  .priority = (osPriority_t) osPriorityHigh,
+};
 /* Definitions for CAN */
 osMutexId_t CANHandle;
 const osMutexAttr_t CAN_attributes = {
@@ -137,6 +149,7 @@ extern void LV_CAN_ManagerTask(void *argument);
 extern void BMS_CAN_ManagerTask(void *argument);
 extern void IO_ManagerTask(void *argument);
 extern void State_ManagerTask(void *argument);
+extern void Acc_ManagerTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -241,6 +254,9 @@ int main(void)
 
   /* creation of State_Manager */
   State_ManagerHandle = osThreadNew(State_ManagerTask, NULL, &State_Manager_attributes);
+
+  /* creation of Acc_Manager */
+  Acc_ManagerHandle = osThreadNew(Acc_ManagerTask, NULL, &Acc_Manager_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -428,6 +444,11 @@ static void MX_CAN1_Init(void)
     Error_Handler();
   }
 
+  // Enable robust CAN fault handling (preserved across CubeMX regeneration)
+  // ABOM: automatic recovery from Bus-Off per CAN specification
+  // NART: clear to enable automatic retransmission for transient failures
+  SET_BIT(hcan1.Instance->MCR, CAN_MCR_ABOM);
+  CLEAR_BIT(hcan1.Instance->MCR, CAN_MCR_NART);
   /* USER CODE END CAN1_Init 2 */
 
 }
@@ -619,10 +640,8 @@ void LED_BlinkTask(void *argument)
   for(;;)
   {
     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-    IO_SetDigitalIO(&bms_fault, true);
     osDelay(500);
     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-    IO_SetDigitalIO(&bms_fault, false);
     osDelay(500);
   }
   /* USER CODE END 5 */

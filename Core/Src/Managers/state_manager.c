@@ -56,6 +56,11 @@ void State_ManagerTask(void *argument) {
         State_SetErrorMask(errors);
         curr_state = _State_Transition(curr_state, errors);
 
+        if (curr_state == ERRORED) {
+            IO_SetDigitalIO(&bms_fault, false);
+        } else {
+            IO_SetDigitalIO(&bms_fault, true);
+        }
 
         _State_PackCanMessage(curr_state, errors, data, &length);
         BMS_CAN_SendMessage(
