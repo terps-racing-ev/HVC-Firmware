@@ -91,6 +91,7 @@ Core/Src/Managers/bms_can_manager.c \
 Core/Src/Managers/io_manager.c \
 Core/Src/Managers/lv_can_manager.c \
 Core/Src/Managers/state_manager.c \
+Core/Src/config/ocv_lookup_table.c \
 Core/Src/freertos.c \
 Core/Src/main.c \
 Core/Src/stm32l4xx_hal_msp.c \
@@ -210,14 +211,14 @@ MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
 AS_DEFS = 
 
 # C defines
-C_DEFS ?=  \
+C_DEFS =  \
 -DSTM32L432xx \
 -DSTM32_THREAD_SAFE_STRATEGY=4 \
 -DUSE_HAL_DRIVER
 
 
 # CXX defines
-CXX_DEFS ?=  \
+CXX_DEFS =  \
 -DSTM32L432xx \
 -DSTM32_THREAD_SAFE_STRATEGY=4 \
 -DUSE_HAL_DRIVER
@@ -269,7 +270,7 @@ CXXFLAGS += $(ASSEMBLER_LIST_OUTPUT_FLAG)
 # LDFLAGS
 #######################################
 # link script
-LDSCRIPT ?= STM32L432XX_FLASH.ld
+LDSCRIPT = STM32L432XX_FLASH.ld
 
 # libraries
 LIBS = -lc -lm -lnosys 
