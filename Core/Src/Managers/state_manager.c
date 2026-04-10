@@ -27,6 +27,9 @@ static void _State_PackCanMessage(State state, ErrorMask errors, uint8_t *data, 
 static State _State_Transition(State curr_state, ErrorMask errors);
 static ErrorMask _State_CheckErrors(void);
 
+/* Private variables ---------------------------------------------------------*/
+bool floating = false;  // For no oscillations on floating check
+
 /**
   * @brief  Initialize State manager
   * @retval HAL_StatusTypeDef
@@ -134,6 +137,24 @@ static ErrorMask _State_CheckErrors(void) {
             if (now-last_heartbeat > MODULE_TIMEOUT_CUTOFF_TICKS) {
                 SET_ERROR(errors, BMS_ERR_MODULE_TIMEOUT);
             }
+        }
+    }
+
+    // TODO: figure out why oscillating on startup when airtop condition met
+    if (CHECK_FLOATING_BATT) {
+        osMutexAcquire(batt.mutex, osWaitForever);
+        uint32_t last_updated = batt.last_updated;
+        osMutexRelease(batt.mutex);
+
+        if (last_updated) {
+            uint32_t voltage = IO_GetVSense(&batt);
+            
+            if (!floating && voltage < ACC_FLOATING_CUTOFF_VOLTAGE_MV - ACC_FLOATING_CUTOFF_HYSTERESIS_VOLTAGE_MV)
+                floating = true;
+            else if (floating && voltage > ACC_FLOATING_CUTOFF_VOLTAGE_MV)
+                floating = false;
+
+            if (floating) SET_ERROR(errors, BMS_ERR_BATT_FLOATING);
         }
     }
 

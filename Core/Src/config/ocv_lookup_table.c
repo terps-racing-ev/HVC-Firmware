@@ -1,6 +1,6 @@
 #include "ocv_lookup_table.h"
 
-static OCV_Voltage_Lookup_t OCV_Lookup_Table[] = {
+OCV_Voltage_Lookup_t OCV_Lookup_Table[] = {
     { 4149u, 10000u },
     { 4088u, 9900u },
     { 4063u, 9800u },

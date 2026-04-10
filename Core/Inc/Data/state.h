@@ -27,10 +27,10 @@ typedef struct {
 
 typedef enum {
     BMS_ERR_REF_OVER_TEMP = 0,
-    BMS_ERR_MODULE_TIMEOUT,
+    BMS_ERR_MODULE_TIMEOUT = 1 << 0,
+    BMS_ERR_BATT_FLOATING = 1 << 1,
 
-    // Keep this last so = # errors added
-    BMS_ERR_COUNT 
+    BMS_ERR_DEFAULT
 } ErrorBit;
 
 extern Locked_ErrorMask bms_errors;

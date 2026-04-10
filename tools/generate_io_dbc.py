@@ -66,8 +66,28 @@ def _parse_error_bits(state_header_path: Path) -> list[tuple[str, int]]:
     body = re.sub(r"/\*.*?\*/", "", body, flags=re.DOTALL)
 
     token_pattern = re.compile(
-        r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*(0x[0-9A-Fa-f]+|\d+))?\s*,?\s*$"
+        r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*(.+?))?\s*,?\s*$"
     )
+
+    def _parse_enum_value(value_expr: str) -> int:
+        expr = value_expr.strip()
+
+        literal = re.fullmatch(r"(0x[0-9A-Fa-f]+|\d+)[uUlL]*", expr)
+        if literal is not None:
+            return int(literal.group(1), 0)
+
+        shift = re.fullmatch(
+            r"(0x[0-9A-Fa-f]+|\d+)[uUlL]*\s*<<\s*(0x[0-9A-Fa-f]+|\d+)[uUlL]*",
+            expr,
+        )
+        if shift is not None:
+            lhs = int(shift.group(1), 0)
+            rhs = int(shift.group(2), 0)
+            return lhs << rhs
+
+        raise ValueError(
+            f"Unsupported ErrorBit enum value expression in {state_header_path}: {value_expr}"
+        )
 
     errors: list[tuple[str, int]] = []
     next_value = 0
@@ -83,9 +103,9 @@ def _parse_error_bits(state_header_path: Path) -> list[tuple[str, int]]:
         name = match.group(1)
         explicit_value = match.group(2)
         if explicit_value is not None:
-            next_value = int(explicit_value, 0)
+            next_value = _parse_enum_value(explicit_value)
 
-        if name == "BMS_ERR_COUNT":
+        if name in {"BMS_ERR_COUNT", "BMS_ERR_DEFAULT"}:
             break
         if name.startswith("BMS_ERR_"):
             errors.append((name, next_value))

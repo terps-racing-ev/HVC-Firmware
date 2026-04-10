@@ -59,6 +59,8 @@ typedef struct {
 /* Public variables  --------------------------------------------------------*/
 #define NUM_ACC_MODULES 6
 #define ACC_CURR_SENSE_QUEUE_SIZE 32U
+#define ACC_FLOATING_CUTOFF_VOLTAGE_MV 100000   // Voltage below batt input is considered floating
+#define ACC_FLOATING_CUTOFF_HYSTERESIS_VOLTAGE_MV 5000  // Hysteresis so no oscillation
 
 extern Acc_Module module_0;
 extern Acc_Module module_1;
