@@ -31,6 +31,7 @@ extern "C" {
 #include "can.h"
 #include "state.h"
 #include "bmb.h"
+#include "debug.h"
 
 /* External Variables --------------------------------------------------------*/
 extern CAN_HandleTypeDef hcan1;
@@ -50,8 +51,8 @@ HAL_StatusTypeDef BMS_CAN_Manager_Init(void);
   */
 void BMS_CAN_ManagerTask(void *argument);
 
-typedef bool (*DecodeFunc)(const CAN_Message_t *in, BMS_Message *out);
-typedef bool (*HandleFunc)(const BMS_Message *msg);
+typedef bool (*DecodeFunc)(const CAN_Message_t *in, BMS_Message_t *out);
+typedef bool (*HandleFunc)(const BMS_Message_t *msg);
 
 typedef struct {
     DecodeFunc decode;
@@ -62,8 +63,8 @@ static const CanDispatchEntry DispatchRegister[] = {
     {DecodeCellTempSummary, HandleCellTempSummary},
     {DecodeAmbientTemps, HandleAmbientTemps},
     {DecodeCellVoltages, HandleCellVoltages},
-    {DecodeBMSHeartbeat, HandleBMSHeartbeat}
-    
+    {DecodeBMSHeartbeat, HandleBMSHeartbeat},
+    {DecodeReset, HandleReset}
 };
 extern const uint8_t DispatchRegisterCount; // Computed at runtime in bms can manager
 

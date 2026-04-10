@@ -37,7 +37,7 @@ uint32_t Test_GetDispatchRegisterMatchCount(void)
 }
 
 HAL_StatusTypeDef Test_BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
-    BMS_Message decoded_msg;
+    BMS_Message_t decoded_msg;
     
     if (msg == NULL){
         return HAL_ERROR;
@@ -58,7 +58,7 @@ HAL_StatusTypeDef Test_BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
     return HAL_OK;
 }
 
-bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out)
+bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message_t *out)
 {
     uint32_t cmd;
 
@@ -80,7 +80,7 @@ bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out)
     return true;
 }
 
-bool HandleCellTempSummary(const BMS_Message *msg){
+bool HandleCellTempSummary(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
@@ -89,7 +89,7 @@ bool HandleCellTempSummary(const BMS_Message *msg){
     return true;
 }
 
-bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message *out){
+bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message_t *out){
     uint32_t cmd;
 
     if (in == NULL || out == NULL) return false;
@@ -110,7 +110,7 @@ bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message *out){
     return true;
 }
 
-bool HandleAmbientTemps(const BMS_Message *msg){
+bool HandleAmbientTemps(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
@@ -119,7 +119,7 @@ bool HandleAmbientTemps(const BMS_Message *msg){
     return true;
 }
 
-bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out){
+bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message_t *out){
     uint32_t cmd;
 
     if (in == NULL || out == NULL) return false;
@@ -153,7 +153,7 @@ bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out){
     return true;
 }
 
-bool HandleCellVoltages(const BMS_Message *msg){
+bool HandleCellVoltages(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
@@ -162,7 +162,7 @@ bool HandleCellVoltages(const BMS_Message *msg){
     return true;
 }
 
-bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out){
+bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message_t *out){
     uint32_t cmd;
 
     if (in == NULL || out == NULL) return false;
@@ -178,7 +178,7 @@ bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out){
     return true;
 }
 
-bool HandleBMSHeartbeat(const BMS_Message *msg){
+bool HandleBMSHeartbeat(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     

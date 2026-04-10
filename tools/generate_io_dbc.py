@@ -2,8 +2,8 @@
 """Generate a DBC file for HVC IO/state/SOC/ACC summary CAN messages.
 
 The script reads CAN IDs from Core/Inc/Config/can_id.h and emits a DBC with
-the IO summary, IO current, state, SOC, and ACC summary messages packed exactly
-as in firmware.
+the IO summary, IO current, IO VSense, state, SOC, and ACC summary messages
+packed exactly as in firmware.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ DEFAULT_OUTPUT = ROOT_DIR / "io_messages.dbc"
 CAN_ID_NAMES = (
     "CAN_ID_IO_SUMMARY",
     "CAN_ID_IO_CURRENT",
+    "CAN_ID_IO_VSENSE",
     "CAN_ID_STATE",
     "CAN_ID_SOC",
     "CAN_ID_ACC_SUMMARY",
@@ -31,7 +32,7 @@ def _parse_can_ids(header_path: Path) -> dict[str, int]:
     """Extract selected CAN ID #defines from the header file."""
     text = header_path.read_text(encoding="utf-8")
     pattern = re.compile(
-        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_IO_CURRENT|CAN_ID_STATE|CAN_ID_SOC|CAN_ID_ACC_SUMMARY)\s+"
+        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_IO_CURRENT|CAN_ID_IO_VSENSE|CAN_ID_STATE|CAN_ID_SOC|CAN_ID_ACC_SUMMARY)\s+"
         r"(0x[0-9A-Fa-f]+|\d+)\b",
         re.MULTILINE,
     )
@@ -117,6 +118,7 @@ def _error_signal_name(error_name: str) -> str:
 def _generate_dbc_text(
     io_summary_id: int,
     io_current_id: int,
+    io_vsense_id: int,
     state_id: int,
     soc_id: int,
     acc_summary_id: int,
@@ -124,9 +126,10 @@ def _generate_dbc_text(
     include_raw_error_mask: bool,
     node_name: str,
 ) -> str:
-    """Build DBC content for IO summary/current, state, SOC, and ACC summary messages."""
+    """Build DBC content for IO summary/current/vsense, state, SOC, and ACC summary messages."""
     io_summary_dbc_id = _dbc_frame_id(io_summary_id)
     io_current_dbc_id = _dbc_frame_id(io_current_id)
+    io_vsense_dbc_id = _dbc_frame_id(io_vsense_id)
     state_dbc_id = _dbc_frame_id(state_id)
     soc_dbc_id = _dbc_frame_id(soc_id)
     acc_summary_dbc_id = _dbc_frame_id(acc_summary_id)
@@ -200,6 +203,10 @@ BO_ {io_current_dbc_id} IO_Current: 8 {node_name}
  SG_ Current_Low_mA : 0|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
  SG_ Current_High_mA : 32|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
 
+BO_ {io_vsense_dbc_id} IO_VSense: 8 {node_name}
+ SG_ Batt_Voltage_mV : 0|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
+ SG_ Inv_Voltage_mV : 32|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
+
 BO_ {state_dbc_id} BMS_State: 5 {node_name}
  SG_ BMS_State : 0|8@1+ (1,0) [0|255] "" Vector__XXX
 {raw_error_mask_line}{error_signals_block}
@@ -269,6 +276,7 @@ def main() -> int:
     dbc_text = _generate_dbc_text(
         io_summary_id=can_ids["CAN_ID_IO_SUMMARY"],
         io_current_id=can_ids["CAN_ID_IO_CURRENT"],
+        io_vsense_id=can_ids["CAN_ID_IO_VSENSE"],
         state_id=can_ids["CAN_ID_STATE"],
         soc_id=can_ids["CAN_ID_SOC"],
         acc_summary_id=can_ids["CAN_ID_ACC_SUMMARY"],
@@ -284,6 +292,7 @@ def main() -> int:
     print(
         f"Used CAN IDs: CAN_ID_IO_SUMMARY=0x{can_ids['CAN_ID_IO_SUMMARY']:08X}, "
         f"CAN_ID_IO_CURRENT=0x{can_ids['CAN_ID_IO_CURRENT']:08X}, "
+        f"CAN_ID_IO_VSENSE=0x{can_ids['CAN_ID_IO_VSENSE']:08X}, "
         f"CAN_ID_STATE=0x{can_ids['CAN_ID_STATE']:08X}, "
         f"CAN_ID_SOC=0x{can_ids['CAN_ID_SOC']:08X}, "
         f"CAN_ID_ACC_SUMMARY=0x{can_ids['CAN_ID_ACC_SUMMARY']:08X}"

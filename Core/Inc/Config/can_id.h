@@ -10,6 +10,8 @@
 #define CAN_ID_IO_CURRENT       0x004001F3
 #define CAN_ID_SOC              0x004001F4
 #define CAN_ID_ACC_SUMMARY      0x004001F5
+#define CAN_ID_RESET            0x004001F6
+#define CAN_ID_IO_VSENSE        0x004001F7
 
 
 /* BMB IDs -------------------------------------------------------------------*/

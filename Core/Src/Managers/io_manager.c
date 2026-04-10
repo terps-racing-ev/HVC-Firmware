@@ -19,31 +19,20 @@
 
 #include "io_manager.h"
 #include "acc.h"
+#include "vsense.h"
 #include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
 
 uint8_t io_initialized = 0;
-
-// External ADC handle (from main.c)
-extern ADC_HandleTypeDef hadc1;
-
-// IO structs
-DigitalIO sdc = {0};
-DigitalIO imd = {0};
-DigitalIO bms_fault = {0};
-AnalogIO cs_low_raw = {0};
-AnalogIO cs_high_raw = {0};
-AnalogIO therm = {0};
-Temp ref_temp = {0};
-Current cs_low = {0};
-Current cs_high = {0};
+bool batt_floating = true; // When batt voltage is floating (<50V)
 
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
 static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out);
 static uint32_t _IO_CalculateVREF(void);
 static void _IO_LowPriority(void);
-static void _IO_Handle_CurrSense_Fault(void);
+static void _IO_HighPriority(void);
+static void _IO_HandleCompEvent(void);
 static void _IO_PackIOSummary(
     uint8_t *data, 
     uint8_t *length,
@@ -58,8 +47,23 @@ static void _IO_PackCurrentSenseMessage(
     int32_t cs_low_val,
     int32_t cs_high_val
 );
+static void _IO_PackVSenseMessage(
+    uint8_t *data,
+    uint8_t *length,
+    uint32_t batt_val,
+    uint32_t inv_val
+);
 
 HAL_StatusTypeDef IO_Manager_Init(void){
+    const osEventFlagsAttr_t comp_flag_attr = {
+        .name = "Comp_Flag"
+    };
+
+    comp_flag = osEventFlagsNew(&comp_flag_attr);
+    if (comp_flag == NULL) {
+        return HAL_ERROR;
+    }
+
     // Calibrate ADC
     if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) {
         return HAL_ERROR;
@@ -77,9 +81,13 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     if (IO_InitAnalogIO(&cs_low_raw, "CS_Low_Raw_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitAnalogIO(&cs_high_raw, "CS_High_Raw_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitAnalogIO(&therm, "Therm_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitAnalogIO(&batt_raw, "Batt_Raw_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitAnalogIO(&inv_raw, "Inv_Raw_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitTemp(&ref_temp, "Ref_Temp_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_low, "CS_Low_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_high, "CS_High_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitVSense(&batt, "Batt_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitVSense(&inv, "Inv_Mutex") != HAL_OK) return HAL_ERROR;
 
     io_initialized = 1;
 
@@ -100,7 +108,14 @@ void IO_ManagerTask(void *argument){
     (void)argument;
 
     for (;;) {
-        _IO_Handle_CurrSense_Fault();
+        _IO_HighPriority();
+
+        // Handle comparator logic if triggered
+        uint32_t comp_events = osEventFlagsWait(comp_flag, IO_COMP_EVENT, osFlagsWaitAny, 0U);
+        if (((comp_events & osFlagsError) == 0U) && ((comp_events & IO_COMP_EVENT) != 0U)) {
+            osEventFlagsClear(comp_flag, IO_COMP_EVENT);
+            _IO_HandleCompEvent();
+        }
 
         if (regular_cycle_divider == 0U) {
             _IO_LowPriority();
@@ -113,6 +128,32 @@ void IO_ManagerTask(void *argument){
 
         osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
     }
+}
+
+static void _IO_HandleCompEvent(void)
+{
+    
+    
+    uint32_t comp_state = HAL_COMP_GetOutputLevel(&hcomp2);
+    State bms_state; State_GetState(&bms_state);
+    uint32_t batt_volt = IO_GetVSense(&batt);
+
+    if (batt_floating && batt_volt >= IO_MAX_BATT_FLOATING_VOLTAGE_MV) {
+        batt_floating = false;
+    } else if (!batt_floating && batt_volt <= IO_MIN_BATT_FLOATING_VOLTAGE_MV) {
+        batt_floating = true;
+    }
+
+    // Conditions to check before allowing AIRTOP to close
+    if (
+        bms_state == ERRORED || 
+        batt_floating ||
+        comp_state == COMP_OUTPUT_LEVEL_LOW
+    ) {
+        HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+    } else {
+        HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_SET);
+    } 
 }
 
 static void _IO_LowPriority(void)
@@ -158,19 +199,17 @@ static void _IO_LowPriority(void)
     );
 }
 
-static void _IO_Handle_CurrSense_Fault(void)
+static void _IO_HighPriority(void)
 {
-    uint8_t current_summary[8];
-    uint8_t current_summary_len;
-    uint32_t vref;
-    uint16_t cs_low_raw_val;
-    uint16_t cs_high_raw_val;
-    int32_t cs_low_val;
-    int32_t cs_high_val;
-    int32_t cs_low_filt_val;
-    int32_t cs_high_filt_val;
+    uint8_t current_summary[8], current_summary_len;
+    uint8_t vsense_summary[8], vsense_summary_len;
+    uint16_t cs_low_raw_val, cs_high_raw_val, batt_raw_val, inv_raw_val;
+    int32_t cs_low_val, cs_high_val, cs_low_filt_val, cs_high_filt_val, vref, timestamp;
+    uint32_t batt_voltage;
+    uint32_t inv_voltage;
+    uint32_t batt_voltage_filt;
+    uint32_t inv_voltage_filt;
     bool fault;
-    uint32_t timestamp;
 
     // Write BMS Fault (1 is good)
     fault = IO_GetDigitalIO(&bms_fault);
@@ -180,13 +219,24 @@ static void _IO_Handle_CurrSense_Fault(void)
     // Calculate ADC reference voltage
     vref = _IO_CalculateVREF();
 
+    // Read Batt voltage
+    _IO_ReadADCChannel(ADC_CHANNEL_BATT, &batt_raw_val);
+    IO_SetAnalogIO(&batt_raw, batt_raw_val);
+    // Read Inv voltage
+    _IO_ReadADCChannel(ADC_CHANNEL_INV, &inv_raw_val);
+    IO_SetAnalogIO(&inv_raw, inv_raw_val);
     // Read CS_LOW (Channel 6 - PA1)
-    _IO_ReadADCChannel(ADC_CHANNEL_6, &cs_low_raw_val);
+    _IO_ReadADCChannel(ADC_CHANNEL_CS_LC, &cs_low_raw_val);
     IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
     // Read CS_HIGH (Channel 5 - PA0)
-    _IO_ReadADCChannel(ADC_CHANNEL_5, &cs_high_raw_val);
+    _IO_ReadADCChannel(ADC_CHANNEL_CS_HC, &cs_high_raw_val);
     IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
 
+    // Calculate batt value
+    // TODO: Use vref here also
+    // Scale 
+    batt_voltage = (uint32_t)(VSense_CalculateVoltage(batt_raw_val) * INVERSE_PRECHARGE_FACTOR);
+    inv_voltage = VSense_CalculateVoltage(inv_raw_val);
     // Calculate cs values
     cs_low_val = Curr_CalculateCurrentSenseLow(cs_low_raw_val, vref);
     cs_high_val = Curr_CalculateCurrentSenseHigh(cs_high_raw_val, vref);
@@ -194,10 +244,14 @@ static void _IO_Handle_CurrSense_Fault(void)
     // Update moving average
     cs_low_filt_val = MovingAverage_Update(&cs_low.ma, cs_low_val);
     cs_high_filt_val = MovingAverage_Update(&cs_high.ma, cs_high_val);
+    batt_voltage_filt = MovingAverage_Update(&batt.ma, batt_voltage);
+    inv_voltage_filt = MovingAverage_Update(&inv.ma, inv_voltage);
     
     // Set cs values
     IO_SetCurrent(&cs_low, cs_low_filt_val);
     IO_SetCurrent(&cs_high, cs_high_filt_val);
+    IO_SetVSense(&batt, batt_voltage_filt);
+    IO_SetVSense(&inv, inv_voltage_filt);
 
     timestamp = osKernelGetTickCount();
     (void)Acc_CurrSenseQueue_Push(cs_low_filt_val, cs_high_filt_val, timestamp, 0U);
@@ -212,6 +266,19 @@ static void _IO_Handle_CurrSense_Fault(void)
         CAN_ID_IO_CURRENT,
         current_summary,
         current_summary_len,
+        CAN_PRIORITY_NORMAL
+    );
+
+    _IO_PackVSenseMessage(
+        vsense_summary,
+        &vsense_summary_len,
+        batt_voltage_filt,
+        inv_voltage_filt
+    );
+    LV_CAN_SendMessage(
+        CAN_ID_IO_VSENSE,
+        vsense_summary,
+        vsense_summary_len,
         CAN_PRIORITY_NORMAL
     );
 }
@@ -338,6 +405,27 @@ static void _IO_PackCurrentSenseMessage(
     data[5] = (uint8_t)((cs_high_u >> 8U) & 0xFFU);
     data[6] = (uint8_t)((cs_high_u >> 16U) & 0xFFU);
     data[7] = (uint8_t)((cs_high_u >> 24U) & 0xFFU);
+    *length = 8U;
+}
+
+static void _IO_PackVSenseMessage(
+    uint8_t *data,
+    uint8_t *length,
+    uint32_t batt_val,
+    uint32_t inv_val
+){
+    if ((data == NULL) || (length == NULL)) {
+        return;
+    }
+
+    data[0] = (uint8_t)(batt_val & 0xFFU);
+    data[1] = (uint8_t)((batt_val >> 8U) & 0xFFU);
+    data[2] = (uint8_t)((batt_val >> 16U) & 0xFFU);
+    data[3] = (uint8_t)((batt_val >> 24U) & 0xFFU);
+    data[4] = (uint8_t)(inv_val & 0xFFU);
+    data[5] = (uint8_t)((inv_val >> 8U) & 0xFFU);
+    data[6] = (uint8_t)((inv_val >> 16U) & 0xFFU);
+    data[7] = (uint8_t)((inv_val >> 24U) & 0xFFU);
     *length = 8U;
 }
 

@@ -20,6 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32l4xx_it.h"
+#include "io.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -237,6 +238,12 @@ void TIM6_DAC_IRQHandler(void)
 void COMP_IRQHandler(void)
 {
   /* USER CODE BEGIN COMP_IRQn 0 */
+
+  // Set a flag for IO manager
+  if (comp_flag != NULL) {
+    (void)osEventFlagsSet(comp_flag, IO_COMP_EVENT);
+  }
+
 
   /* USER CODE END COMP_IRQn 0 */
   HAL_COMP_IRQHandler(&hcomp2);

@@ -46,6 +46,16 @@ typedef struct {
     float temp_max;
 } Acc_Summary_t;
 
+typedef struct {
+    uint8_t module;
+    union {
+        CellTemps cell_temps;
+        AmbientTemps amb_temps;
+        CellVoltages cell_voltages;
+        uint32_t heartbeat_timestamp;
+    };
+} BMS_Message_t;
+
 /* Public variables  --------------------------------------------------------*/
 #define NUM_ACC_MODULES 6
 #define ACC_CURR_SENSE_QUEUE_SIZE 32U

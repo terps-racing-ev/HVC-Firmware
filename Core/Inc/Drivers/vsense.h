@@ -1,8 +1,8 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : state_manager.h
-  * @brief          : State manager header
+  * @file           : therm.h
+  * @brief          : Header for calculating thermistor temps
   ******************************************************************************
   * @attention
   *
@@ -16,29 +16,15 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
-#include "state.h"
-#include "main.h"
-#include "io.h"
-#include "can.h"
-#include "can_id.h"
-#include "acc.h"
+#include "stm32l4xx_hal.h"
 
-#define STATE_REFRESH_FREQ_MS 100
-
-#define MODULE_TIMEOUT_CUTOFF_TICKS 2000
-
-#define CHECK_MODULE_TIMEOUT 0
-#define CHECK_REF_OVERTEMP 1
+// Calculated from resistor divider
+#define READ_VOLT_TO_INPUT_VOLT 509.692307692f
 
 /**
-  * @brief  Initialize State manager
-  * @retval HAL_StatusTypeDef
+  * @brief  Calculate voltage from vsense ADC reading
+  * @param  adc_value: Raw ADC value (0-4095)
+  * @retval Voltage in mV
   */
-HAL_StatusTypeDef State_Manager_Init(void);
+uint32_t VSense_CalculateVoltage(uint16_t adc_value);
 
-/**
-  * @brief  Main State manager task
-  * @param  argument: Not used
-  * @retval None
-  */
-void State_ManagerTask(void *argument);

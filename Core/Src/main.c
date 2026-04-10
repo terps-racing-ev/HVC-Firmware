@@ -576,7 +576,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LD3_Pin|BMS_Fault_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LD3_Pin|PL_SIGNAL_Pin|BMS_Fault_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : SPI1_CS_Pin */
   GPIO_InitStruct.Pin = SPI1_CS_Pin;
@@ -599,8 +599,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD3_Pin BMS_Fault_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin|BMS_Fault_Pin;
+  /*Configure GPIO pins : LD3_Pin PL_SIGNAL_Pin BMS_Fault_Pin */
+  GPIO_InitStruct.Pin = LD3_Pin|PL_SIGNAL_Pin|BMS_Fault_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -624,7 +624,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_LED_BlinkTask */
@@ -714,7 +713,7 @@ void Error_Handler(void)
     }
 
     // TODO: delay that doesn't use HAL_DELAY?
-    for (int i = 0; i < 1000; i++) {};
+    for (int i = 0; i < 10000; i++) {};
   }
   /* USER CODE END Error_Handler_Debug */
 }

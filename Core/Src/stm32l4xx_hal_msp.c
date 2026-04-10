@@ -276,11 +276,9 @@ void HAL_COMP_MspInit(COMP_HandleTypeDef* hcomp)
     /* USER CODE END COMP2_MspInit 0 */
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOB_CLK_ENABLE();
     /**COMP2 GPIO Configuration
     PA2     ------> COMP2_INM
     PA3     ------> COMP2_INP
-    PB5     ------> COMP2_OUT
     */
     GPIO_InitStruct.Pin = BATT_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
@@ -291,13 +289,6 @@ void HAL_COMP_MspInit(COMP_HandleTypeDef* hcomp)
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(INV_GPIO_Port, &GPIO_InitStruct);
-
-    GPIO_InitStruct.Pin = PL_Signal_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF12_COMP2;
-    HAL_GPIO_Init(PL_Signal_GPIO_Port, &GPIO_InitStruct);
 
     /* COMP2 interrupt Init */
     HAL_NVIC_SetPriority(COMP_IRQn, 5, 0);
@@ -327,11 +318,8 @@ void HAL_COMP_MspDeInit(COMP_HandleTypeDef* hcomp)
     /**COMP2 GPIO Configuration
     PA2     ------> COMP2_INM
     PA3     ------> COMP2_INP
-    PB5     ------> COMP2_OUT
     */
     HAL_GPIO_DeInit(GPIOA, BATT_Pin|INV_Pin);
-
-    HAL_GPIO_DeInit(PL_Signal_GPIO_Port, PL_Signal_Pin);
 
     /* COMP2 interrupt DeInit */
     HAL_NVIC_DisableIRQ(COMP_IRQn);

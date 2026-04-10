@@ -43,6 +43,8 @@ typedef struct {
     uint32_t bus_off_count;         // CAN bus-off events
 } CAN_Statistics_t;
 
+
+
 /* Public Functions --------------------------------------------------------*/
 
 /**

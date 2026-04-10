@@ -1,6 +1,23 @@
 #include "io.h"
 #include "cmsis_os.h"
 
+osEventFlagsId_t comp_flag = NULL;
+
+// IO structs
+DigitalIO sdc = {0};
+DigitalIO imd = {0};
+DigitalIO bms_fault = {0};
+AnalogIO cs_low_raw = {0};
+AnalogIO cs_high_raw = {0};
+AnalogIO therm = {0};
+AnalogIO batt_raw = {0};
+AnalogIO inv_raw = {0};
+Temp ref_temp = {0};
+Current cs_low = {0};
+Current cs_high = {0};
+VSense_t batt = {0};
+VSense_t inv = {0};
+
 HAL_StatusTypeDef IO_InitDigitalIO(DigitalIO* dio, const char* mutex_name) {
     if (dio == NULL || mutex_name == NULL) {
         return HAL_ERROR;
@@ -80,6 +97,25 @@ HAL_StatusTypeDef IO_InitCurrent(Current* current, const char* mutex_name) {
     return HAL_OK;
 }
 
+HAL_StatusTypeDef IO_InitVSense(VSense_t* v, const char* mutex_name) {
+    if (v == NULL || mutex_name == NULL) {
+        return HAL_ERROR;
+    }
+
+    const osMutexAttr_t vsense_mutex_attr = {
+        .name = mutex_name
+    };
+
+    v->mutex = osMutexNew(&vsense_mutex_attr);
+    if (v->mutex == NULL) return HAL_ERROR;
+
+    MovingAverage_Init(&v->ma, MA_WINDOW_SIZE*3);
+    v->value = 0;
+    v->last_updated = 0;
+    
+    return HAL_OK;
+}
+
 bool IO_GetDigitalIO(DigitalIO *dio){
     bool val;
 
@@ -120,6 +156,16 @@ int32_t IO_GetCurrent(Current *c) {
     return curr;
 }
 
+uint32_t IO_GetVSense(VSense_t *v) {
+    uint32_t val;
+
+    osMutexAcquire(v->mutex, osWaitForever);
+    val = v->value;
+    osMutexRelease(v->mutex);
+
+    return val;
+}
+
 void IO_SetDigitalIO(DigitalIO *dio, bool value) {
     uint32_t now = osKernelGetTickCount();
 
@@ -154,4 +200,13 @@ void IO_SetCurrent(Current *c, int32_t value) {
     c->value = value;
     c->last_updated = now;
     osMutexRelease(c->mutex);
+}
+
+void IO_SetVSense(VSense_t *v, uint32_t value) {
+    uint32_t now = osKernelGetTickCount();
+
+    osMutexAcquire(v->mutex, osWaitForever);
+    v->value = value;
+    v->last_updated = now;
+    osMutexRelease(v->mutex);
 }

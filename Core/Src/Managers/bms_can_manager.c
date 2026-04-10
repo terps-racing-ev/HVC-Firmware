@@ -132,7 +132,7 @@ HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length
 }
 
 static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
-    BMS_Message decoded_msg;
+    BMS_Message_t decoded_msg;
     
     if (msg == NULL){
         return HAL_ERROR;

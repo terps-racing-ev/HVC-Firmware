@@ -40,16 +40,6 @@
 
 #define AMBIENT_TEMP_MSG_INDEX 13
 
-typedef struct {
-    uint8_t module;
-    union {
-        CellTemps cell_temps;
-        AmbientTemps amb_temps;
-        CellVoltages cell_voltages;
-        uint32_t heartbeat_timestamp;
-    };
-} BMS_Message;
-
 /* Decoders --------------------------------------------------------*/
 /**
  * @brief Decodes min and max temps from cell temp summary.
@@ -57,7 +47,7 @@ typedef struct {
  * @param out: Output pointer to decoded module and message info.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out);
+bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message_t *out);
 
 /**
  * @brief Decodes ambient temps from last cell temp message.
@@ -65,7 +55,7 @@ bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out);
  * @param out: Output pointer to decoded module and message info.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message *out);
+bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message_t *out);
 
 /**
  * @brief Decodes cell voltage messages.
@@ -73,7 +63,7 @@ bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message *out);
  * @param out: Output pointer to decoded module info and updated min/max data.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out);
+bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message_t *out);
 
 /**
  * @brief Decodes heartbeat message.
@@ -81,7 +71,7 @@ bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out);
  * @param out: Output pointer to decoded module info and message timestamp.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out);
+bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message_t *out);
 
 /* Handlers --------------------------------------------------------*/
 /**
@@ -89,25 +79,25 @@ bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out);
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleCellTempSummary(const BMS_Message *msg);
+bool HandleCellTempSummary(const BMS_Message_t *msg);
 
 /**
  * @brief Updates corresponding ACC module with ambient temp info.
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleAmbientTemps(const BMS_Message *msg);
+bool HandleAmbientTemps(const BMS_Message_t *msg);
 
 /**
  * @brief Updates corresponding ACC module with cell voltage info.
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleCellVoltages(const BMS_Message *msg);
+bool HandleCellVoltages(const BMS_Message_t *msg);
 
 /**
  * @brief Updates corresponding ACC module with heartbeat timestamp.
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleBMSHeartbeat(const BMS_Message *msg);
+bool HandleBMSHeartbeat(const BMS_Message_t *msg);

@@ -16,7 +16,7 @@
   ******************************************************************************
   */
 
-  #include "bmb.h"
+#include "bmb.h"
 
 /**
  * @brief Decodes min and max temps from cell temp summary.
@@ -24,7 +24,7 @@
  * @param out: Output pointer to decoded module and message info.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out)
+bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message_t *out)
 {
     uint32_t cmd;
 
@@ -52,7 +52,7 @@ bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message *out)
  * @param out: Output pointer to decoded module and message info.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message *out){
+bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message_t *out){
     uint32_t cmd;
 
     if (in == NULL || out == NULL) return false;
@@ -79,7 +79,7 @@ bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message *out){
  * @param out: Output pointer to decoded module info and updated min/max data.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out){
+bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message_t *out){
     uint32_t cmd;
 
     if (in == NULL || out == NULL) return false;
@@ -129,7 +129,7 @@ bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message *out){
  * @param out: Output pointer to decoded module info and message timestamp.
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out){
+bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message_t *out){
     uint32_t cmd;
 
     if (in == NULL || out == NULL) return false;
@@ -150,7 +150,7 @@ bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message *out){
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleCellTempSummary(const BMS_Message *msg){
+bool HandleCellTempSummary(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
@@ -164,7 +164,7 @@ bool HandleCellTempSummary(const BMS_Message *msg){
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleAmbientTemps(const BMS_Message *msg){
+bool HandleAmbientTemps(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
@@ -178,7 +178,7 @@ bool HandleAmbientTemps(const BMS_Message *msg){
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleCellVoltages(const BMS_Message *msg){
+bool HandleCellVoltages(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
@@ -192,7 +192,7 @@ bool HandleCellVoltages(const BMS_Message *msg){
  * @param msg: Input pointer to decoded module and message info.
  * @retval bool
  */
-bool HandleBMSHeartbeat(const BMS_Message *msg){
+bool HandleBMSHeartbeat(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     

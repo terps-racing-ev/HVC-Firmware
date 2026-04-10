@@ -78,15 +78,19 @@ void Error_Handler(void);
 #define LD3_GPIO_Port GPIOB
 #define LV_CAN_INT_Pin GPIO_PIN_4
 #define LV_CAN_INT_GPIO_Port GPIOB
-#define PL_Signal_Pin GPIO_PIN_5
-#define PL_Signal_GPIO_Port GPIOB
+#define PL_SIGNAL_Pin GPIO_PIN_5
+#define PL_SIGNAL_GPIO_Port GPIOB
 #define BMS_Fault_Pin GPIO_PIN_6
 #define BMS_Fault_GPIO_Port GPIOB
 #define EMeter_Therm_Pin GPIO_PIN_7
 #define EMeter_Therm_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+#define ADC_CHANNEL_CS_HC ADC_CHANNEL_5
+#define ADC_CHANNEL_CS_LC ADC_CHANNEL_6
+#define ADC_CHANNEL_BATT ADC_CHANNEL_7
+#define ADC_CHANNEL_INV ADC_CHANNEL_8
+#define ADC_CHANNEL_THERM ADC_CHANNEL_15
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
