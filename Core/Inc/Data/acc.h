@@ -157,9 +157,10 @@ HAL_StatusTypeDef Acc_CurrSenseQueue_Push(
 /**
  * @brief Calculates overall min/max cell voltage and temperature across all ACC modules.
  *
+ * @param modules_checked Outpoint ptr to number of modules checked
  * @return HAL_OK when calculation succeeds, HAL_ERROR when no valid module data is available.
  */
-HAL_StatusTypeDef Acc_CalculateSummary(void);
+HAL_StatusTypeDef Acc_CalculateSummary(uint8_t* modules_checked);
 
 /**
  * @brief Gets the most recently calculated ACC summary.

@@ -103,3 +103,5 @@ OCV_Voltage_Lookup_t OCV_Lookup_Table[] = {
     { 2693u, 100u },
     { 2645u, 0u },
 };
+
+const uint32_t OCV_Lookup_Table_Size = sizeof(OCV_Lookup_Table)/sizeof(OCV_Voltage_Lookup_t);

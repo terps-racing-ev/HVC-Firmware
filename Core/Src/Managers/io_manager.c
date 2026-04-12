@@ -65,7 +65,8 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     }
 
     // Calibrate ADC
-    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) {
+    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK)
+    {
         return HAL_ERROR;
     }
 
@@ -218,6 +219,8 @@ static void _IO_HighPriority(void)
     
     // Calculate ADC reference voltage
     vref = _IO_CalculateVREF();
+
+
 
     // Read Batt voltage
     _IO_ReadADCChannel(ADC_CHANNEL_BATT, &batt_raw_val);

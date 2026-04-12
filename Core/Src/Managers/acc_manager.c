@@ -24,7 +24,7 @@
 
 static osMessageQueueId_t Acc_CurrSenseQueueHandle = NULL;
 
-static void _Acc_PackSocDeltaMessage(uint8_t *data, uint8_t *length, int64_t soc_delta);
+static void _Acc_PackSocMessage(uint8_t *data, uint8_t *length, const SOC_Snapshot_t *snapshot);
 static void _Acc_PackSummaryMessage(uint8_t *data, uint8_t *length, const Acc_Summary_t *summary);
 
 HAL_StatusTypeDef Acc_Manager_Init(void)
@@ -64,12 +64,13 @@ HAL_StatusTypeDef Acc_Manager_Init(void)
 void Acc_ManagerTask(void *argument)
 {
   Acc_CurrSenseSample_t sample;
-  int64_t soc_delta;
   uint8_t soc_data[8];
   uint8_t soc_len;
   Acc_Summary_t summary;
   uint8_t summary_data[8];
-  uint8_t summary_len;
+  uint8_t summary_len, modules_checked;
+  bool soc_estimated = false;
+  SOC_Snapshot_t soc_snapshot;
 
   (void)argument;
 
@@ -78,16 +79,27 @@ void Acc_ManagerTask(void *argument)
       Soc_UpdateDeltaFromCurrSample(sample.cs_low, sample.cs_high, sample.timestamp);
     }
 
-    // Soc_GetDelta(&soc_delta);
-    // _Acc_PackSocDeltaMessage(soc_data, &soc_len, soc_delta);
-    // (void)LV_CAN_SendMessage(
-    //   CAN_ID_SOC,
-    //   soc_data,
-    //   soc_len,
-    //   CAN_PRIORITY_NORMAL
-    // );
+    HAL_StatusTypeDef summary_status = Acc_CalculateSummary(&modules_checked);
 
-    if ((Acc_CalculateSummary() == HAL_OK) && (Acc_GetSummary(&summary) == HAL_OK)) {
+    if ((summary_status == HAL_OK) && (Acc_GetSummary(&summary) == HAL_OK)) {
+      // Estimate SOC
+      // TODO: another check for waiting for resting + read from flash
+      if (!soc_estimated && modules_checked) {
+        SOC_UpdateStartingCapacityFromVolt(summary.volt_min);
+        soc_estimated = true;
+      }
+
+      SOC_GetSnapshot(&soc_snapshot);
+
+      _Acc_PackSocMessage(soc_data, &soc_len, &soc_snapshot);
+      (void)LV_CAN_SendMessage(
+        CAN_ID_SOC,
+        soc_data,
+        soc_len,
+        CAN_PRIORITY_NORMAL
+      );
+
+
       _Acc_PackSummaryMessage(summary_data, &summary_len, &summary);
       (void)LV_CAN_SendMessage(
         CAN_ID_ACC_SUMMARY,
@@ -97,8 +109,6 @@ void Acc_ManagerTask(void *argument)
       );
     }
     
-
-
     osDelay(ACC_UPDATE_FREQ_MS);
   }
 }
@@ -135,24 +145,24 @@ HAL_StatusTypeDef Acc_CurrSenseQueue_Push(
   return HAL_ERROR;
 }
 
-static void _Acc_PackSocDeltaMessage(uint8_t *data, uint8_t *length, int64_t soc_delta)
+static void _Acc_PackSocMessage(uint8_t *data, uint8_t *length, const SOC_Snapshot_t *snapshot)
 {
-  uint64_t soc_u;
+  uint32_t soc_delta_u;
 
-  if ((data == NULL) || (length == NULL)) {
+  if ((data == NULL) || (length == NULL) || (snapshot == NULL)) {
     return;
   }
 
-  soc_u = (uint64_t)soc_delta;
+  soc_delta_u = (uint32_t)snapshot->soc_delta_As;
 
-  data[0] = (uint8_t)(soc_u & 0xFFU);
-  data[1] = (uint8_t)((soc_u >> 8U) & 0xFFU);
-  data[2] = (uint8_t)((soc_u >> 16U) & 0xFFU);
-  data[3] = (uint8_t)((soc_u >> 24U) & 0xFFU);
-  data[4] = (uint8_t)((soc_u >> 32U) & 0xFFU);
-  data[5] = (uint8_t)((soc_u >> 40U) & 0xFFU);
-  data[6] = (uint8_t)((soc_u >> 48U) & 0xFFU);
-  data[7] = (uint8_t)((soc_u >> 56U) & 0xFFU);
+  data[0] = (uint8_t)(snapshot->soc_pctx100 & 0xFFU);
+  data[1] = (uint8_t)((snapshot->soc_pctx100 >> 8U) & 0xFFU);
+  data[2] = (uint8_t)(snapshot->soc_capacity_As & 0xFFU);
+  data[3] = (uint8_t)((snapshot->soc_capacity_As >> 8U) & 0xFFU);
+  data[4] = (uint8_t)(soc_delta_u & 0xFFU);
+  data[5] = (uint8_t)((soc_delta_u >> 8U) & 0xFFU);
+  data[6] = (uint8_t)((soc_delta_u >> 16U) & 0xFFU);
+  data[7] = (uint8_t)((soc_delta_u >> 24U) & 0xFFU);
   *length = 8U;
 }
 

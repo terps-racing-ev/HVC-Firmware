@@ -53,10 +53,9 @@ void State_ManagerTask(void *argument) {
 
     for (;;) {
         State_GetState(&curr_state);
-        if (curr_state > PRE_INIT) {
-            errors = _State_CheckErrors();
-        }
+        errors = _State_CheckErrors();
         State_SetErrorMask(errors);
+
         curr_state = _State_Transition(curr_state, errors);
 
         if (curr_state == ERRORED) {
@@ -92,8 +91,13 @@ static State _State_Transition(State curr_state, ErrorMask errors) {
         case PRE_INIT:
             //Check if everything else is initialized
             if (io_initialized && bms_can_initialized && lv_can_initialized) {
-                curr_state = OK;
-                State_SetState(OK);
+                if (errors) {
+                    curr_state = ERRORED;
+                    State_SetState(ERRORED);
+                } else {
+                    curr_state = OK;
+                    State_SetState(OK);
+                }   
             }
             break;
         case OK:
@@ -140,7 +144,7 @@ static ErrorMask _State_CheckErrors(void) {
         }
     }
 
-    // TODO: figure out why oscillating on startup when airtop condition met
+    // TODO: cleaner method for this
     if (CHECK_FLOATING_BATT) {
         osMutexAcquire(batt.mutex, osWaitForever);
         uint32_t last_updated = batt.last_updated;

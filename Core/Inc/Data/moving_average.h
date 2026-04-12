@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define MA_WINDOW_SIZE 8
+#define MA_WINDOW_SIZE 12
 
 typedef struct {
 

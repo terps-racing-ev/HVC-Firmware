@@ -164,13 +164,14 @@ void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps){
     osMutexRelease(module->mutex);
 }
 
-HAL_StatusTypeDef Acc_CalculateSummary(void)
+HAL_StatusTypeDef Acc_CalculateSummary(uint8_t *modules_checked)
 {
     CellVoltages module_voltages;
     CellTemps module_temps;
     Acc_Summary_t next_summary;
     uint32_t i;
     uint8_t has_valid_module = 0U;
+    uint32_t heartbeat_last_update;
 
     for (i = 0U; i < NUM_ACC_MODULES; i++) {
         if (acc[i] == NULL) {
@@ -179,6 +180,18 @@ HAL_StatusTypeDef Acc_CalculateSummary(void)
 
         Acc_GetCellVoltages(acc[i], &module_voltages);
         Acc_GetCellTemps(acc[i], &module_temps);
+        Acc_GetHeartbeatLastUpdate(acc[i], &heartbeat_last_update);
+        
+        // No data
+        if (
+            module_voltages.volt_min == 0 || 
+            module_temps.temp_min == 0||
+            heartbeat_last_update == 0
+        ){
+            continue;
+        } else {
+            *modules_checked++;
+        }
 
         if (has_valid_module == 0U) {
             next_summary.volt_min = module_voltages.volt_min;

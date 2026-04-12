@@ -153,8 +153,8 @@ def _generate_dbc_text(
     state_dbc_id = _dbc_frame_id(state_id)
     soc_dbc_id = _dbc_frame_id(soc_id)
     acc_summary_dbc_id = _dbc_frame_id(acc_summary_id)
-    # Add debug CAN message for current-sense ADC + VREF (ID 0x000000DB)
-    cs_debug_dbc_id = _dbc_frame_id(0x000000DB)
+    # Add VREF debug CAN message (ID 0x000000DB)
+    vref_debug_dbc_id = _dbc_frame_id(0x000000DB)
 
     error_signal_lines: list[str] = []
     error_value_lines: list[str] = []
@@ -231,8 +231,10 @@ BO_ {state_dbc_id} BMS_State: 5 {node_name}
  SG_ BMS_State : 0|8@1+ (1,0) [0|255] "" Vector__XXX
 {raw_error_mask_line}{error_signals_block}
 
-BO_ {soc_dbc_id} SOC_Delta: 8 {node_name}
- SG_ SOC_Delta_Ams : 0|64@1- (1,0) [-9223372036854775808|9223372036854775807] "A*ms" Vector__XXX
+BO_ {soc_dbc_id} SOC: 8 {node_name}
+ SG_ SOC_Percent : 0|16@1+ (0.01,0) [0|100] "%" Vector__XXX
+ SG_ SOC_Capacity_As : 16|16@1+ (1,0) [0|65535] "A*s" Vector__XXX
+ SG_ SOC_Delta_As : 32|32@1- (1,0) [-2147483648|2147483647] "A*s" Vector__XXX
 
 BO_ {acc_summary_dbc_id} ACC_Summary: 8 {node_name}
  SG_ Acc_Volt_Min_mV : 0|16@1+ (1,0) [0|65535] "mV" Vector__XXX
@@ -240,10 +242,9 @@ BO_ {acc_summary_dbc_id} ACC_Summary: 8 {node_name}
  SG_ Acc_Temp_Min_C : 32|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
  SG_ Acc_Temp_Max_C : 48|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
 
-BO_ {cs_debug_dbc_id} CS_Debug: 8 {node_name}
- SG_ CS_Low_ADC : 0|16@1+ (1,0) [0|65535] "" Vector__XXX
- SG_ CS_High_ADC : 16|16@1+ (1,0) [0|65535] "" Vector__XXX
- SG_ VREF : 32|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
+BO_ {vref_debug_dbc_id} VREF_Debug: 6 {node_name}
+ SG_ VREFINT_ADC : 0|16@1+ (1,0) [0|65535] "counts" Vector__XXX
+ SG_ VREF_mV : 16|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
 
 VAL_ {state_dbc_id} BMS_State 0 "PRE_INIT" 1 "OK" 2 "ERRORED" ;
 {error_values_block}

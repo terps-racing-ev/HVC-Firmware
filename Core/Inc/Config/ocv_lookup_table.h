@@ -1,9 +1,12 @@
 /** NOTE: THE OCV DATA DOES NOT ACCOUNT FOR VOLTAGE DROOP **/
 
+#ifndef OCV_LOOKUP_TABLE_H
+#define OCV_LOOKUP_TABLE_H
+
 #include <stdint.h>
 
-typedef uint32_t voltage_mv_t;
-typedef uint32_t capacity_pct_t;
+typedef uint16_t voltage_mv_t;
+typedef uint16_t capacity_pct_t;
 
 typedef struct {
     voltage_mv_t voltage_mv;
@@ -11,5 +14,6 @@ typedef struct {
 } OCV_Voltage_Lookup_t;
 
 extern OCV_Voltage_Lookup_t OCV_Lookup_Table[];
+extern const uint32_t OCV_Lookup_Table_Size;
 
-#define OCV_TABLE_SIZE (sizeof(OCV_Lookup_Table)/sizeof(OCV_Voltage_Lookup_t))
+#endif /* OCV_LOOKUP_TABLE_H */

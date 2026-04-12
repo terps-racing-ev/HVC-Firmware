@@ -2,11 +2,19 @@
 #define __SOC_H
 
 #include "main.h"
-#include "cmsis_os2.h"
 
 #define SOC_HIGH_CHANNEL_SWITCH_CURRENT_MA 75000
 #define SOC_HIGH_CHANNEL_SWITCH_OFFSET_MA 5000
 #define SOC_MA_PER_A 1000
+#define SOC_MS_PER_S 1000
+#define SOC_MA_MS_PER_A_S (SOC_MA_PER_A * SOC_MS_PER_S)
+#define SOC_MAX_CAPACITY_A_S 48600 // TODO: use flash to store dynamic, pls
+
+typedef struct {
+    uint16_t soc_pctx100;
+    uint16_t soc_capacity_As;
+    int32_t soc_delta_As;
+} SOC_Snapshot_t;
 
 /**
  * @brief Initializes SOC module state.
@@ -29,10 +37,26 @@ HAL_StatusTypeDef Soc_Init(void);
 void Soc_UpdateDeltaFromCurrSample(int32_t cs_low, int32_t cs_high, uint32_t timestamp);
 
 /**
- * @brief Gets the accumulated SOC delta.
+ * @brief Converts pack voltage to SOC using the OCV lookup table.
  *
- * @param out_delta Output pointer for delta in A*ms.
+ * The lookup table is expected to be sorted by descending voltage. This
+ * function returns the SOC of the first table entry whose voltage is less than
+ * or equal to voltage_mv.
+ *
+ * @param voltage_mv Input voltage in mV.
  */
-void Soc_GetDelta(int64_t *out_delta);
+void SOC_UpdateStartingCapacityFromVolt(uint32_t voltage_mv);
+
+/**
+ * @brief Gets a thread-safe snapshot of current SOC tracking values.
+ *
+ * @param snapshot Output pointer for SOC snapshot values.
+ */
+void SOC_GetSnapshot(SOC_Snapshot_t* snapshot);
+
+/**
+ * @brief Resets integrated SOC delta and restores snapshot from starting capacity.
+ */
+void SOC_Reset(void);
 
 #endif /* __SOC_H */
