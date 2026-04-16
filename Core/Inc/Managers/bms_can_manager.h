@@ -62,11 +62,11 @@ typedef struct {
 static const CanDispatchEntry DispatchRegister[] = {
     {DecodeCellTempSummary, HandleCellTempSummary},
     {DecodeAmbientTemps, HandleAmbientTemps},
-    {DecodeCellVoltages, HandleCellVoltages},
+    {DecodeVoltageSummary, HandleVoltageSummary},
     {DecodeBMSHeartbeat, HandleBMSHeartbeat},
     {DecodeReset, HandleReset}
 };
-extern const uint8_t DispatchRegisterCount; // Computed at runtime in bms can manager
+#define DispatchRegisterCount (sizeof(DispatchRegister)/sizeof(CanDispatchEntry))
 
 #ifdef __cplusplus
 }

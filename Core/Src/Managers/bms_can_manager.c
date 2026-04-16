@@ -24,8 +24,6 @@
 static osMessageQueueId_t BMS_CAN_RxQueueHandle = NULL;
 static osMessageQueueId_t BMS_CAN_TxQueueHandle = NULL;
 static CAN_Statistics_t bms_can_stats = {0};
-// Compute array length
-const uint8_t DispatchRegisterCount = sizeof(DispatchRegister)/sizeof(CanDispatchEntry);
 
 /* Private function prototypes -----------------------------------------------*/
 static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg);

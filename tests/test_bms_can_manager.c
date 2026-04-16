@@ -221,8 +221,8 @@ void test_BMS_CAN_ProcessRXMessage_amb_temps(void)
     Test_BMS_CAN_ProcessRXMessage(&msg);
 
     TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(45.6, acc[0]->amb_temps.amb_temp_1);
-    TEST_ASSERT_EQUAL_FLOAT(47.8, acc[0]->amb_temps.amb_temp_2);
+    TEST_ASSERT_EQUAL_INT16(456, acc[0]->amb_temps.amb_temp_1_Cx10);
+    TEST_ASSERT_EQUAL_INT16(478, acc[0]->amb_temps.amb_temp_2_Cx10);
 
 }
 
@@ -248,9 +248,9 @@ void test_BMS_CAN_ProcessRXMessage_voltages(void)
     Test_BMS_CAN_ProcessRXMessage(&msg2);
 
     TEST_ASSERT_EQUAL_UINT32(3, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_UINT16(3550, acc[0]->cell_voltages.volt_min);
+    TEST_ASSERT_EQUAL_UINT16(3550, acc[0]->cell_voltages.volt_min_mV);
     TEST_ASSERT_EQUAL_UINT8(2, acc[0]->cell_voltages.volt_min_cell_id);
-    TEST_ASSERT_EQUAL_UINT16(4380, acc[0]->cell_voltages.volt_max);
+    TEST_ASSERT_EQUAL_UINT16(4380, acc[0]->cell_voltages.volt_max_mV);
     TEST_ASSERT_EQUAL_UINT8(6, acc[0]->cell_voltages.volt_max_cell_id);
 
 }

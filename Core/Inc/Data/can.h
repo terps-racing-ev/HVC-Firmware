@@ -12,7 +12,7 @@
 #define BMS_ECHO_MSGS 1
 
 /* CAN Defaults */
-#define CAN_TX_QUEUE_SIZE 64        // Number of messages that can be queued
+#define CAN_TX_QUEUE_SIZE 128        // Number of messages that can be queued
 #define CAN_RX_QUEUE_SIZE 32        // Number of received messages to buffer
 #define CAN_TX_TIMEOUT_MS 100       // Timeout for adding message to queue
 #define CAN_MAX_RETRIES 3           // Maximum transmission retry attempts

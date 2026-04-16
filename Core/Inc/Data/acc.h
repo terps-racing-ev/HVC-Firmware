@@ -6,31 +6,51 @@
 #include "io.h"
 
 typedef struct {
-    uint16_t volt_min;
-    uint16_t volt_max;
+    uint16_t volt_min_mV;
+    uint16_t volt_max_mV;
+    uint16_t volt_avg_mV;
     uint8_t volt_min_cell_id;
     uint8_t volt_max_cell_id;
-    uint16_t volt_avg;
-} CellVoltages;
+} CellVoltages_t;
 
 typedef struct {
-    float temp_min;
-    float temp_max;
-    float temp_avg; // Lots of work for HVC if BMB's don't
-} CellTemps;
+    uint16_t temp_min_Cx10;
+    uint16_t temp_max_Cx10;
+    uint16_t temp_avg_Cx10;
+    uint8_t temp_min_cell_id;
+    uint8_t temp_max_cell_id;
+} CellTemps_t;
 
 typedef struct {
-    float amb_temp_1;
-    float amb_temp_2;
-} AmbientTemps;
+    int16_t amb_temp_1_Cx10;
+    int16_t amb_temp_2_Cx10;
+} AmbientTemps_t;
+
+typedef struct {
+    uint32_t heartbeat_timestamp;
+    bool errored;
+} HeartbeatMessage_t;
+
+typedef struct {
+    uint8_t module;
+    bool is_bms1;   // Cell voltages can come from bms1 or bms2
+    union {
+        CellTemps_t cell_temps;
+        AmbientTemps_t amb_temps;
+        CellVoltages_t cell_voltages;
+        HeartbeatMessage_t heartbeat;
+    };
+} BMS_Message_t;
 
 typedef struct {
     osMutexId_t mutex;
     uint32_t heartbeat_last_update;
-    CellVoltages cell_voltages;
-    CellTemps cell_temps;
-    AmbientTemps amb_temps;
-} Acc_Module;
+    bool errored;
+    CellVoltages_t cell_voltages_bms1;
+    CellVoltages_t cell_voltages_bms2;
+    CellTemps_t cell_temps;
+    AmbientTemps_t amb_temps;
+} Acc_Module_t;
 
 typedef struct {
     int32_t cs_low;
@@ -40,36 +60,26 @@ typedef struct {
 
 typedef struct {
     osMutexId_t mutex;
-    uint16_t volt_min;
-    uint16_t volt_max;
-    float temp_min;
-    float temp_max;
+    uint16_t volt_min_mV;
+    uint16_t volt_max_mV;
+    int16_t temp_min_Cx10;
+    int16_t temp_max_Cx10;
 } Acc_Summary_t;
-
-typedef struct {
-    uint8_t module;
-    union {
-        CellTemps cell_temps;
-        AmbientTemps amb_temps;
-        CellVoltages cell_voltages;
-        uint32_t heartbeat_timestamp;
-    };
-} BMS_Message_t;
 
 /* Public variables  --------------------------------------------------------*/
 #define NUM_ACC_MODULES 6
 #define ACC_CURR_SENSE_QUEUE_SIZE 32U
-#define ACC_FLOATING_CUTOFF_VOLTAGE_MV 100000   // Voltage below batt input is considered floating
+#define ACC_FLOATING_CUTOFF_VOLTAGE_MV 100000   // Voltage below which batt input is considered floating
 #define ACC_FLOATING_CUTOFF_HYSTERESIS_VOLTAGE_MV 5000  // Hysteresis so no oscillation
 
-extern Acc_Module module_0;
-extern Acc_Module module_1;
-extern Acc_Module module_2;
-extern Acc_Module module_3;
-extern Acc_Module module_4;
-extern Acc_Module module_5;
+extern Acc_Module_t module_0;
+extern Acc_Module_t module_1;
+extern Acc_Module_t module_2;
+extern Acc_Module_t module_3;
+extern Acc_Module_t module_4;
+extern Acc_Module_t module_5;
 
-extern Acc_Module *acc[NUM_ACC_MODULES];
+extern Acc_Module_t *acc[NUM_ACC_MODULES];
 extern Acc_Summary_t acc_summary;
 
 /* Getters  --------------------------------------------------------*/
@@ -79,15 +89,16 @@ extern Acc_Summary_t acc_summary;
  * @param module Pointer to the ACC module instance.
  * @param last_update Output pointer for the heartbeat timestamp.
  */
-void Acc_GetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update);
+void Acc_GetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t* last_update);
 
 /**
  * @brief Gets all cell voltages for the ACC module.
  *
  * @param module Pointer to the ACC module instance.
  * @param cell_voltages Output pointer for cell voltage data.
+ * @param bms1 True if request voltages for bms1
  */
-void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages);
+void Acc_GetCellVoltages(Acc_Module_t *module, CellVoltages_t *cell_voltages, bool bms1);
 
 /**
  * @brief Gets all cell temperatures for the ACC module.
@@ -95,32 +106,33 @@ void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages);
  * @param module Pointer to the ACC module instance.
  * @param cell_temps Output pointer for cell temperature data.
  */
-void Acc_GetCellTemps(Acc_Module *module, CellTemps *cell_temps);
+void Acc_GetCellTemps(Acc_Module_t *module, CellTemps_t *cell_temps);
 
 /**
- * @brief Gets all ambient temperatures for the ACC module.
+ * @brief Gets all ambient temperatures for the ACC module (deci-degC, Cx10).
  *
  * @param module Pointer to the ACC module instance.
  * @param amb_temps Output pointer for ambient temperature data.
  */
-void Acc_GetAmbientTemps(Acc_Module *module, AmbientTemps *amb_temps);
+void Acc_GetAmbientTemps(Acc_Module_t *module, AmbientTemps_t *amb_temps);
 
 /* Setters  --------------------------------------------------------*/
 /**
  * @brief Sets the last heartbeat timestamp for the ACC module.
  *
  * @param module Pointer to the ACC module instance.
- * @param last_update Input pointer containing the heartbeat timestamp.
+ * @param heartbeat Message with heartbeat timestamp and error status
  */
-void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update);
+void Acc_SetHeartbeat(Acc_Module_t *module, const HeartbeatMessage_t *heartbeat);
 
 /**
  * @brief Sets all cell voltages for the ACC module.
  *
  * @param module Pointer to the ACC module instance.
  * @param cell_voltages Input pointer containing cell voltage data.
+ * @param is_bms1 True for BMS1 summary, false for BMS2 summary.
  */
-void Acc_SetCellVoltages(Acc_Module *module, const CellVoltages *cell_voltages);
+void Acc_SetCellVoltages(Acc_Module_t *module, const CellVoltages_t *cell_voltages, bool is_bms1);
 
 /**
  * @brief Sets all cell temperatures for the ACC module.
@@ -128,15 +140,15 @@ void Acc_SetCellVoltages(Acc_Module *module, const CellVoltages *cell_voltages);
  * @param module Pointer to the ACC module instance.
  * @param cell_temps Input pointer containing cell temperature data.
  */
-void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps);
+void Acc_SetCellTemps(Acc_Module_t *module, const CellTemps_t *cell_temps);
 
 /**
- * @brief Sets all ambient temperatures for the ACC module.
+ * @brief Sets all ambient temperatures for the ACC module (deci-degC, Cx10).
  *
  * @param module Pointer to the ACC module instance.
  * @param amb_temps Input pointer containing ambient temperature data.
  */
-void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps);
+void Acc_SetAmbientTemps(Acc_Module_t *module, const AmbientTemps_t *amb_temps);
 
 /**
  * @brief Pushes current-sense values and timestamp to the ACC-owned queue.

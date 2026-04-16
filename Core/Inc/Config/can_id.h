@@ -34,6 +34,9 @@ typedef enum {
     BMB_CAN_BMS1_STATUS   = 0x08F00206u,  /**< Base for BMS1 chip status (stack voltage, alarm, temp) */
     BMB_CAN_BMS2_STATUS   = 0x08F00207u,  /**< Base for BMS2 chip status (stack voltage, alarm, temp) */
 
+    BMB_CAN_BMS1_VOLTAGE_SUMMARY    = 0x08F00208u,
+    BMB_CAN_BMS2_VOLTAGE_SUMMARY    = 0x08F00209u,
+
     /* BMS Status Messages */
     BMB_CAN_BMS_HEARTBEAT = 0x08F00300u,  /**< Base for BMS heartbeat/status message */
     BMB_CAN_BMS_STATS     = 0x08F00301u,  /**< Base for BMS CAN statistics (RX/TX counters) */

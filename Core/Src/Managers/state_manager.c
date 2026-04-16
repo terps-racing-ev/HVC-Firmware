@@ -151,11 +151,11 @@ static ErrorMask _State_CheckErrors(void) {
         osMutexRelease(batt.mutex);
 
         if (last_updated) {
-            uint32_t voltage = IO_GetVSense(&batt);
+            uint32_t voltage_mV = IO_GetVSense(&batt);
             
-            if (!floating && voltage < ACC_FLOATING_CUTOFF_VOLTAGE_MV - ACC_FLOATING_CUTOFF_HYSTERESIS_VOLTAGE_MV)
+            if (!floating && voltage_mV < ACC_FLOATING_CUTOFF_VOLTAGE_MV - ACC_FLOATING_CUTOFF_HYSTERESIS_VOLTAGE_MV)
                 floating = true;
-            else if (floating && voltage > ACC_FLOATING_CUTOFF_VOLTAGE_MV)
+            else if (floating && voltage_mV > ACC_FLOATING_CUTOFF_VOLTAGE_MV)
                 floating = false;
 
             if (floating) SET_ERROR(errors, BMS_ERR_BATT_FLOATING);

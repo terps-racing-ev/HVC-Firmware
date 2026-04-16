@@ -32,7 +32,7 @@ HAL_StatusTypeDef Acc_Manager_Init(void)
   uint32_t i;
 
   for (i = 0U; i < NUM_ACC_MODULES; i++) {
-    *acc[i] = (Acc_Module){0};
+    *acc[i] = (Acc_Module_t){0};
     acc[i]->mutex = osMutexNew(NULL);
     if (acc[i]->mutex == NULL) {
       return HAL_ERROR;
@@ -84,8 +84,8 @@ void Acc_ManagerTask(void *argument)
     if ((summary_status == HAL_OK) && (Acc_GetSummary(&summary) == HAL_OK)) {
       // Estimate SOC
       // TODO: another check for waiting for resting + read from flash
-      if (!soc_estimated && modules_checked) {
-        SOC_UpdateStartingCapacityFromVolt(summary.volt_min);
+      if (!soc_estimated && modules_checked == NUM_ACC_MODULES) {
+        SOC_UpdateStartingCapacityFromVolt(summary.volt_min_mV);
         soc_estimated = true;
       }
 
@@ -168,40 +168,18 @@ static void _Acc_PackSocMessage(uint8_t *data, uint8_t *length, const SOC_Snapsh
 
 static void _Acc_PackSummaryMessage(uint8_t *data, uint8_t *length, const Acc_Summary_t *summary)
 {
-  int16_t temp_min_deci_c;
-  int16_t temp_max_deci_c;
-  float scaled;
-
   if ((data == NULL) || (length == NULL) || (summary == NULL)) {
     return;
   }
 
-  scaled = summary->temp_min * 10.0f;
-  if (scaled > 32767.0f) {
-    temp_min_deci_c = 32767;
-  } else if (scaled < -32768.0f) {
-    temp_min_deci_c = -32768;
-  } else {
-    temp_min_deci_c = (scaled >= 0.0f) ? (int16_t)(scaled + 0.5f) : (int16_t)(scaled - 0.5f);
-  }
-
-  scaled = summary->temp_max * 10.0f;
-  if (scaled > 32767.0f) {
-    temp_max_deci_c = 32767;
-  } else if (scaled < -32768.0f) {
-    temp_max_deci_c = -32768;
-  } else {
-    temp_max_deci_c = (scaled >= 0.0f) ? (int16_t)(scaled + 0.5f) : (int16_t)(scaled - 0.5f);
-  }
-
   // Byte layout (little-endian): v_min, v_max, t_min_dC, t_max_dC
-  data[0] = (uint8_t)(summary->volt_min & 0xFFU);
-  data[1] = (uint8_t)((summary->volt_min >> 8U) & 0xFFU);
-  data[2] = (uint8_t)(summary->volt_max & 0xFFU);
-  data[3] = (uint8_t)((summary->volt_max >> 8U) & 0xFFU);
-  data[4] = (uint8_t)((uint16_t)temp_min_deci_c & 0xFFU);
-  data[5] = (uint8_t)(((uint16_t)temp_min_deci_c >> 8U) & 0xFFU);
-  data[6] = (uint8_t)((uint16_t)temp_max_deci_c & 0xFFU);
-  data[7] = (uint8_t)(((uint16_t)temp_max_deci_c >> 8U) & 0xFFU);
+  data[0] = (uint8_t)(summary->volt_min_mV & 0xFFU);
+  data[1] = (uint8_t)((summary->volt_min_mV >> 8U) & 0xFFU);
+  data[2] = (uint8_t)(summary->volt_max_mV & 0xFFU);
+  data[3] = (uint8_t)((summary->volt_max_mV >> 8U) & 0xFFU);
+  data[4] = (uint8_t)((uint16_t)summary->temp_min_Cx10 & 0xFFU);
+  data[5] = (uint8_t)(((uint16_t)summary->temp_min_Cx10 >> 8U) & 0xFFU);
+  data[6] = (uint8_t)((uint16_t)summary->temp_max_Cx10 & 0xFFU);
+  data[7] = (uint8_t)(((uint16_t)summary->temp_max_Cx10 >> 8U) & 0xFFU);
   *length = 8U;
 }

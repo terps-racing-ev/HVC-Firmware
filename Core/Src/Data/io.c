@@ -109,7 +109,7 @@ HAL_StatusTypeDef IO_InitVSense(VSense_t* v, const char* mutex_name) {
     v->mutex = osMutexNew(&vsense_mutex_attr);
     if (v->mutex == NULL) return HAL_ERROR;
 
-    MovingAverage_Init(&v->ma, MA_WINDOW_SIZE*100);
+    MovingAverage_Init(&v->ma, MA_WINDOW_SIZE*10);
     v->value = 0;
     v->last_updated = 0;
     

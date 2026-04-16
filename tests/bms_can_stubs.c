@@ -4,14 +4,14 @@ static uint32_t dispatch_register_match_count = 0;
 
 CAN_HandleTypeDef hcan1;
 
-Acc_Module module_0 = {0};
-Acc_Module module_1 = {0};
-Acc_Module module_2 = {0};
-Acc_Module module_3 = {0};
-Acc_Module module_4 = {0};
-Acc_Module module_5 = {0};
+Acc_Module_t module_0 = {0};
+Acc_Module_t module_1 = {0};
+Acc_Module_t module_2 = {0};
+Acc_Module_t module_3 = {0};
+Acc_Module_t module_4 = {0};
+Acc_Module_t module_5 = {0};
 
-Acc_Module *acc[6] = {
+Acc_Module_t *acc[6] = {
     &module_0,
     &module_1,
     &module_2,
@@ -74,8 +74,8 @@ bool DecodeCellTempSummary(const CAN_Message_t *in, BMS_Message_t *out)
     int16_t min_raw = (int16_t)((uint16_t)in->data[0] | ((uint16_t)in->data[1] << 8));
     int16_t max_raw = (int16_t)((uint16_t)in->data[2] | ((uint16_t)in->data[3] << 8));
 
-    out->cell_temps.temp_min = ((float)min_raw) / 10.0f; // 636 -> 63.6 C
-    out->cell_temps.temp_max = ((float)max_raw) / 10.0f; // 636 -> 63.6 C
+    out->cell_temps.temp_min_Cx10 = (uint16_t)min_raw;
+    out->cell_temps.temp_max_Cx10 = (uint16_t)max_raw;
 
     return true;
 }
@@ -100,12 +100,12 @@ bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message_t *out){
 
     out->module = MODULE_ID(in->id);
    
-    // Ambient temp 1 in bytes 4-5, ambient temp 2 in bytes 6-7 (0.1C)
+    // Ambient temp 1 in bytes 4-5, ambient temp 2 in bytes 6-7 (Cx10)
     int16_t temp_1_raw = (int16_t)((uint16_t)in->data[4] | ((uint16_t)in->data[5] << 8));
     int16_t temp_2_raw = (int16_t)((uint16_t)in->data[6] | ((uint16_t)in->data[7] << 8));
 
-    out->amb_temps.amb_temp_1 = ((float)temp_1_raw) / 10.0f;
-    out->amb_temps.amb_temp_2 = ((float)temp_2_raw) / 10.0f;
+    out->amb_temps.amb_temp_1_Cx10 = temp_1_raw;
+    out->amb_temps.amb_temp_2_Cx10 = temp_2_raw;
 
     return true;
 }
@@ -133,20 +133,20 @@ bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message_t *out){
     Acc_GetCellVoltages(acc[out->module], &out->cell_voltages);
 
     uint8_t cell_id[CELLS_PER_VOLTAGE_MSG];
-    uint16_t volt[CELLS_PER_VOLTAGE_MSG];
+    uint16_t volt_mV[CELLS_PER_VOLTAGE_MSG];
     
     for (int i = 0; i < CELLS_PER_VOLTAGE_MSG; i++) {
         // cells 1-3 in message 0, 4-6 in message 1, 7-9 in message 2, and so on
         cell_id[i] = CELLS_PER_VOLTAGE_MSG * VOLTAGE_MSG_INDEX(cmd) + i + 1;
         // first voltage in bytes 0-1, second voltage in bytes 2-3, third voltage in bytes 4-5 (mV)
-        volt[i] = (uint16_t)in->data[2 * i] | ((uint16_t)in->data[2 * i + 1] << 8);
+        volt_mV[i] = (uint16_t)in->data[2 * i] | ((uint16_t)in->data[2 * i + 1] << 8);
         
-        if ((out->cell_voltages.volt_min == 0) || (volt[i] < out->cell_voltages.volt_min)) {
+        if ((out->cell_voltages.volt_min_mV == 0) || (volt_mV[i] < out->cell_voltages.volt_min_mV)) {
             out->cell_voltages.volt_min_cell_id = cell_id[i];
-            out->cell_voltages.volt_min = volt[i];
-        } else if (volt[i] > out->cell_voltages.volt_max) {
+            out->cell_voltages.volt_min_mV = volt_mV[i];
+        } else if (volt_mV[i] > out->cell_voltages.volt_max_mV) {
             out->cell_voltages.volt_max_cell_id = cell_id[i];
-            out->cell_voltages.volt_max = volt[i];
+            out->cell_voltages.volt_max_mV = volt_mV[i];
         }
     }
 
@@ -157,7 +157,39 @@ bool HandleCellVoltages(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
-    Acc_SetCellVoltages(acc[msg->module], &msg->cell_voltages);
+    Acc_SetCellVoltages(acc[msg->module], &msg->cell_voltages, true);
+
+    return true;
+}
+
+bool DecodeVoltageSummary(const CAN_Message_t *in, BMS_Message_t *out){
+    uint32_t cmd;
+
+    if (in == NULL || out == NULL) return false;
+    if (in->length < 8U) return false;
+
+    cmd = REMOVE_MODULE_ID(in->id);
+    if ((cmd != BMB_CAN_BMS1_VOLTAGE_SUMMARY) && (cmd != BMB_CAN_BMS2_VOLTAGE_SUMMARY)) {
+        return false;
+    }
+
+    out->module = MODULE_ID(in->id);
+    out->is_bms1 = (cmd == BMB_CAN_BMS1_VOLTAGE_SUMMARY);
+
+    out->cell_voltages.volt_avg_mV = (uint16_t)in->data[0] | ((uint16_t)in->data[1] << 8);
+    out->cell_voltages.volt_min_mV = (uint16_t)in->data[2] | ((uint16_t)in->data[3] << 8);
+    out->cell_voltages.volt_max_mV = (uint16_t)in->data[4] | ((uint16_t)in->data[5] << 8);
+    out->cell_voltages.volt_min_cell_id = in->data[6];
+    out->cell_voltages.volt_max_cell_id = in->data[7];
+
+    return true;
+}
+
+bool HandleVoltageSummary(const BMS_Message_t *msg){
+    if (msg == NULL) return false;
+    if (msg->module >= 6U) return false;
+
+    Acc_SetCellVoltages(acc[msg->module], &msg->cell_voltages, msg->is_bms1);
 
     return true;
 }
@@ -173,7 +205,7 @@ bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message_t *out){
 
     out->module = MODULE_ID(in->id);
    
-    out->heartbeat_timestamp = in->timestamp;
+    out->heartbeat.heartbeat_timestamp = in->timestamp;
 
     return true;
 }
@@ -182,24 +214,24 @@ bool HandleBMSHeartbeat(const BMS_Message_t *msg){
     if (msg == NULL) return false;
     if (msg->module >= 6U) return false;
     
-    Acc_SetHeartbeatLastUpdate(acc[msg->module], &msg->heartbeat_timestamp);
+    Acc_SetHeartbeat(acc[msg->module], &msg->heartbeat.heartbeat_timestamp);
 
     return true;
 }
 
-void Acc_GetCellVoltages(Acc_Module *module, CellVoltages *cell_voltages){
+void Acc_GetCellVoltages(Acc_Module_t *module, CellVoltages_t *cell_voltages){
     if (module == NULL) {
         return;
     }
 
     osMutexAcquire(module->mutex, osWaitForever);
     if (cell_voltages != NULL) {
-        *cell_voltages = module->cell_voltages;
+        *cell_voltages = module->cell_voltages_bms1;
     }
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update){
+void Acc_SetHeartbeat(Acc_Module_t *module, uint32_t* last_update){
     if (module == NULL) {
         return;
     }
@@ -211,19 +243,23 @@ void Acc_SetHeartbeatLastUpdate(Acc_Module *module, uint32_t* last_update){
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetCellVoltages(Acc_Module *module, const CellVoltages *cell_voltages){
+void Acc_SetCellVoltages(Acc_Module_t *module, const CellVoltages_t *cell_voltages, bool is_bms1){
     if (module == NULL) {
         return;
     }
 
     osMutexAcquire(module->mutex, osWaitForever);
     if (cell_voltages != NULL) {
-        module->cell_voltages = *cell_voltages;
+        if (is_bms1) {
+            module->cell_voltages_bms1 = *cell_voltages;
+        } else {
+            module->cell_voltages_bms2 = *cell_voltages;
+        }
     }
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps){
+void Acc_SetCellTemps(Acc_Module_t *module, const CellTemps_t *cell_temps){
     if (module == NULL) {
         return;
     }
@@ -235,7 +271,7 @@ void Acc_SetCellTemps(Acc_Module *module, const CellTemps *cell_temps){
     osMutexRelease(module->mutex);
 }
 
-void Acc_SetAmbientTemps(Acc_Module *module, const AmbientTemps *amb_temps){
+void Acc_SetAmbientTemps(Acc_Module_t *module, const AmbientTemps_t *amb_temps){
     if (module == NULL) {
         return;
     }

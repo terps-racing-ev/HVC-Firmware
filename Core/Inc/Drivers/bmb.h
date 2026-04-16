@@ -66,6 +66,14 @@ bool DecodeAmbientTemps(const CAN_Message_t *in, BMS_Message_t *out);
 bool DecodeCellVoltages(const CAN_Message_t *in, BMS_Message_t *out);
 
 /**
+ * @brief Decodes BMS1/BMS2 voltage summary message.
+ * @param in: Input pointer to received CAN message.
+ * @param out: Output pointer to decoded module, BMS source and voltage summary data.
+ * @retval bool: Returns true if message is meant for this decoder, false if not.
+ */
+bool DecodeVoltageSummary(const CAN_Message_t *in, BMS_Message_t *out);
+
+/**
  * @brief Decodes heartbeat message.
  * @param in: Input pointer to received CAN message.
  * @param out: Output pointer to decoded module info and message timestamp.
@@ -94,6 +102,13 @@ bool HandleAmbientTemps(const BMS_Message_t *msg);
  * @retval bool
  */
 bool HandleCellVoltages(const BMS_Message_t *msg);
+
+/**
+ * @brief Updates corresponding ACC module with BMS1/BMS2 voltage summary info.
+ * @param msg: Input pointer to decoded module and message info.
+ * @retval bool
+ */
+bool HandleVoltageSummary(const BMS_Message_t *msg);
 
 /**
  * @brief Updates corresponding ACC module with heartbeat timestamp.

@@ -63,6 +63,10 @@ void Soc_UpdateDeltaFromCurrSample(int32_t cs_low, int32_t cs_high, uint32_t tim
     threshold = SOC_HIGH_CHANNEL_SWITCH_CURRENT_MA - SOC_HIGH_CHANNEL_SWITCH_OFFSET_MA;
     selected_current = (abs_low >= threshold) ? cs_high : cs_low;
 
+    if (selected_current < IGNORED_CURR_CUTOFF_MA && selected_current > -IGNORED_CURR_CUTOFF_MA) {
+        selected_current = 0;
+    }
+
     dt_ms = timestamp - soc_last_timestamp;
     delta_mAms = ((int64_t)selected_current * (int64_t)dt_ms) + soc_delta_remainder_mAms;
     soc_snapshot.soc_delta_As += (delta_mAms / SOC_MA_MS_PER_A_S);
@@ -76,6 +80,7 @@ void Soc_UpdateDeltaFromCurrSample(int32_t cs_low, int32_t cs_high, uint32_t tim
         soc_snapshot.soc_pctx100 = (uint16_t)(((float)soc_snapshot.soc_capacity_As / (float)SOC_MAX_CAPACITY_A_S) * 10000);
     }
 
+
     osMutexRelease(soc_mutex);
 }
 
@@ -86,16 +91,42 @@ void SOC_UpdateStartingCapacityFromVolt(uint32_t voltage_mv)
 {
     size_t i;
     uint16_t starting_capacity_local;
-    
-    // Calculate from OCV table
-    capacity_pct_t capacity_pctx100 = 0;
-    for (i = 0U; i < OCV_Lookup_Table_Size; i++) {
-        if (OCV_Lookup_Table[i].voltage_mv <= voltage_mv) {
-            capacity_pctx100 = OCV_Lookup_Table[i].capacity_pct;
-            break;
+    capacity_pct_t capacity_pctx100;
+
+    if (OCV_Lookup_Table_Size == 0U) {
+        return;
+    }
+
+    // Clamp outside the table range.
+    if (voltage_mv >= OCV_Lookup_Table[0U].voltage_mv) {
+        capacity_pctx100 = OCV_Lookup_Table[0U].capacity_pct;
+    } else if (voltage_mv <= OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].voltage_mv) {
+        capacity_pctx100 = OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].capacity_pct;
+    } else {
+        capacity_pctx100 = OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].capacity_pct;
+
+        for (i = 1U; i < OCV_Lookup_Table_Size; i++) {
+            uint32_t v_high = OCV_Lookup_Table[i - 1U].voltage_mv;
+            uint32_t v_low = OCV_Lookup_Table[i].voltage_mv;
+
+            if ((voltage_mv <= v_high) && (voltage_mv >= v_low)) {
+                uint32_t c_high = OCV_Lookup_Table[i - 1U].capacity_pct;
+                uint32_t c_low = OCV_Lookup_Table[i].capacity_pct;
+
+                if (v_high == v_low) {
+                    capacity_pctx100 = (capacity_pct_t)c_low;
+                } else {
+                    uint32_t dv = v_high - v_low;
+                    uint32_t dv_meas = voltage_mv - v_low;
+                    uint32_t interp = c_low + (((c_high - c_low) * dv_meas) / dv);
+                    capacity_pctx100 = (capacity_pct_t)interp;
+                }
+                break;
+            }
         }
     }
-    starting_capacity_local = (capacity_pctx100 * SOC_MAX_CAPACITY_A_S) / 10000U;
+
+    starting_capacity_local = (uint16_t)(((uint32_t)capacity_pctx100 * SOC_MAX_CAPACITY_A_S) / 10000U);
 
     if (soc_mutex == NULL) {
         return;

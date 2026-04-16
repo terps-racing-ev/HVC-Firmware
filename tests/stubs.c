@@ -50,10 +50,10 @@ __attribute__((weak)) uint8_t io_initialized = 0;
 __attribute__((weak)) uint8_t bms_can_initialized = 0;
 __attribute__((weak)) uint8_t lv_can_initialized = 0;
 __attribute__((weak)) Temp ref_temp = {0};
-__attribute__((weak)) Acc_Module *acc[NUM_ACC_MODULES] = {0};
+__attribute__((weak)) Acc_Module_t *acc[NUM_ACC_MODULES] = {0};
 
 static State test_state = PRE_INIT;
-static Acc_Module test_acc_modules[NUM_ACC_MODULES];
+static Acc_Module_t test_acc_modules[NUM_ACC_MODULES];
 static ErrorMask test_error_mask = 0;
 static uint32_t bms_can_send_call_count = 0;
 static uint32_t lv_can_send_call_count = 0;
@@ -112,7 +112,7 @@ void Test_Stubs_Reset(void)
     test_error_mask = 0;
 
     for (size_t i = 0; i < NUM_ACC_MODULES; i++) {
-        memset(&test_acc_modules[i], 0, sizeof(Acc_Module));
+        memset(&test_acc_modules[i], 0, sizeof(Acc_Module_t));
         test_acc_modules[i].mutex = (osMutexId_t)0x1;
         acc[i] = &test_acc_modules[i];
     }
@@ -614,7 +614,7 @@ __attribute__((weak)) void State_GetErrorMask(ErrorMask *mask)
     }
 }
 
-__attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module *module, uint32_t *last_update)
+__attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t *last_update)
 {
     if ((module != NULL) && (last_update != NULL)) {
         *last_update = module->heartbeat_last_update;

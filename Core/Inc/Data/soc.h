@@ -4,11 +4,13 @@
 #include "main.h"
 
 #define SOC_HIGH_CHANNEL_SWITCH_CURRENT_MA 75000
-#define SOC_HIGH_CHANNEL_SWITCH_OFFSET_MA 5000
+#define SOC_HIGH_CHANNEL_SWITCH_OFFSET_MA 74900
 #define SOC_MA_PER_A 1000
 #define SOC_MS_PER_S 1000
 #define SOC_MA_MS_PER_A_S (SOC_MA_PER_A * SOC_MS_PER_S)
 #define SOC_MAX_CAPACITY_A_S 48600 // TODO: use flash to store dynamic, pls
+
+#define IGNORED_CURR_CUTOFF_MA 200 // Minimum current value that isn't ignored in delta calc
 
 typedef struct {
     uint16_t soc_pctx100;

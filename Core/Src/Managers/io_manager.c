@@ -70,6 +70,9 @@ HAL_StatusTypeDef IO_Manager_Init(void){
         return HAL_ERROR;
     }
 
+    // Delay to fix random ADC offsets
+    for (int i = 0; i < 10000; i++) {};
+
     // Start comparator
     if (HAL_COMP_Start(&hcomp2) != HAL_OK) {
         return HAL_ERROR;
@@ -164,7 +167,7 @@ static void _IO_LowPriority(void)
     float temp;
     bool sdc_raw;
     bool imd_raw;
-    uint16_t therm_raw;
+    uint16_t therm_raw = IO_GetAnalogIO(&therm);
 
     // Read SDC + IMD
     sdc_raw = (HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin) == GPIO_PIN_SET);
@@ -173,9 +176,9 @@ static void _IO_LowPriority(void)
     IO_SetDigitalIO(&imd, imd_raw);
 
     // Read Therm
-    // TODO: handle HAL_ERROR return
-    _IO_ReadADCChannel(ADC_CHANNEL_15, &therm_raw);
-    IO_SetAnalogIO(&therm, therm_raw);
+    if (_IO_ReadADCChannel(ADC_CHANNEL_15, &therm_raw) == HAL_OK) {
+        IO_SetAnalogIO(&therm, therm_raw);
+    }
 
     // Calculate and update temp value
     temp = Therm_CalculateTemperature(therm_raw);
@@ -204,8 +207,12 @@ static void _IO_HighPriority(void)
 {
     uint8_t current_summary[8], current_summary_len;
     uint8_t vsense_summary[8], vsense_summary_len;
-    uint16_t cs_low_raw_val, cs_high_raw_val, batt_raw_val, inv_raw_val;
-    int32_t cs_low_val, cs_high_val, cs_low_filt_val, cs_high_filt_val, vref, timestamp;
+    uint16_t cs_low_raw_val = IO_GetAnalogIO(&cs_low_raw);
+    uint16_t cs_high_raw_val = IO_GetAnalogIO(&cs_high_raw);
+    uint16_t batt_raw_val = IO_GetAnalogIO(&batt_raw);
+    uint16_t inv_raw_val = IO_GetAnalogIO(&inv_raw);
+    int32_t cs_low_val, cs_high_val, cs_low_filt_val, cs_high_filt_val, timestamp;
+    uint32_t vref;
     uint32_t batt_voltage;
     uint32_t inv_voltage;
     uint32_t batt_voltage_filt;
@@ -220,20 +227,20 @@ static void _IO_HighPriority(void)
     // Calculate ADC reference voltage
     vref = _IO_CalculateVREF();
 
-
-
-    // Read Batt voltage
-    _IO_ReadADCChannel(ADC_CHANNEL_BATT, &batt_raw_val);
-    IO_SetAnalogIO(&batt_raw, batt_raw_val);
-    // Read Inv voltage
-    _IO_ReadADCChannel(ADC_CHANNEL_INV, &inv_raw_val);
-    IO_SetAnalogIO(&inv_raw, inv_raw_val);
-    // Read CS_LOW (Channel 6 - PA1)
-    _IO_ReadADCChannel(ADC_CHANNEL_CS_LC, &cs_low_raw_val);
-    IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
-    // Read CS_HIGH (Channel 5 - PA0)
-    _IO_ReadADCChannel(ADC_CHANNEL_CS_HC, &cs_high_raw_val);
-    IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
+    // Keep the previous sample on conversion failure so bad startup reads
+    // cannot inject uninitialized stack values into filters.
+    if (_IO_ReadADCChannel(ADC_CHANNEL_BATT, &batt_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&batt_raw, batt_raw_val);
+    }
+    if (_IO_ReadADCChannel(ADC_CHANNEL_INV, &inv_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&inv_raw, inv_raw_val);
+    }
+    if (_IO_ReadADCChannel(ADC_CHANNEL_CS_LC, &cs_low_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
+    }
+    if (_IO_ReadADCChannel(ADC_CHANNEL_CS_HC, &cs_high_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
+    }
 
     // Calculate batt value
     // TODO: Use vref here also
@@ -311,6 +318,12 @@ static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel)
  */
 static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
 {   
+    uint32_t adc_value;
+
+    if (out == NULL) {
+        return HAL_ERROR;
+    }
+
     if (_IO_ConfigADCChannel(channel) != HAL_OK) {
         return HAL_ERROR;
     }
@@ -320,10 +333,17 @@ static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
     }
     
     if (HAL_ADC_PollForConversion(&hadc1, 100) != HAL_OK) {
+        (void)HAL_ADC_Stop(&hadc1);
         return HAL_ERROR;
     }
-    
-    *out = HAL_ADC_GetValue(&hadc1);
+
+    adc_value = HAL_ADC_GetValue(&hadc1);
+
+    if (HAL_ADC_Stop(&hadc1) != HAL_OK) {
+        return HAL_ERROR;
+    }
+
+    *out = (uint16_t)adc_value;
     return HAL_OK;
 }
 
@@ -333,12 +353,17 @@ static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
   */
 static uint32_t _IO_CalculateVREF(void)
 {
-    uint16_t vref_adc_value;
-	uint32_t vref_voltage = 0;
+    uint16_t vref_adc_value = 0U;
+    static uint32_t vref_voltage = 3300U;
 
     if (_IO_ReadADCChannel(ADC_CHANNEL_VREFINT, &vref_adc_value) == HAL_OK) {
-		vref_voltage = __HAL_ADC_CALC_VREFANALOG_VOLTAGE(vref_adc_value, ADC_RESOLUTION_12B);
-	}
+        uint32_t measured_vref = __HAL_ADC_CALC_VREFANALOG_VOLTAGE(vref_adc_value, ADC_RESOLUTION_12B);
+
+        // Reject implausible Vref readings and keep last-known-good value.
+        if ((measured_vref >= 2800U) && (measured_vref <= 3600U)) {
+            vref_voltage = measured_vref;
+        }
+    }
 
     return vref_voltage;
 
