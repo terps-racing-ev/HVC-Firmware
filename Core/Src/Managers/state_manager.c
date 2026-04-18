@@ -24,7 +24,7 @@ Locked_State bms_state = {0};
 
 /* Private functions ---------------------------------------------------------*/
 static void _State_PackCanMessage(State state, ErrorMask errors, uint8_t *data, uint8_t *length);
-static State _State_Transition(State curr_state, ErrorMask errors);
+static State _State_Transition(State curr_state, ErrorMask errors, bool charging_requested);
 static ErrorMask _State_CheckErrors(void);
 
 /* Private variables ---------------------------------------------------------*/
@@ -36,6 +36,14 @@ bool floating = false;  // For no oscillations on floating check
   */
 HAL_StatusTypeDef State_Manager_Init(void) {
     if (State_InitState(&bms_state) != HAL_OK) return HAL_ERROR;
+
+    const osEventFlagsAttr_t charge_flag_attr = {
+        .name = "Charge_Flag"
+    };
+    charge_flag = osEventFlagsNew(&charge_flag_attr);
+    if (charge_flag == NULL) {
+        return HAL_ERROR;
+    }
 
     return HAL_OK;
 }
@@ -55,8 +63,16 @@ void State_ManagerTask(void *argument) {
         State_GetState(&curr_state);
         errors = _State_CheckErrors();
         State_SetErrorMask(errors);
+        bool charging_requested = false;
+        
+        // Handle charging logic if triggered
+        uint32_t charge_events = osEventFlagsWait(charge_flag, CHARGING_EVENT, osFlagsWaitAny, 0U);
+        if (((charge_events & osFlagsError) == 0U) && ((charge_events & CHARGING_EVENT) != 0U)) {
+            osEventFlagsClear(comp_flag, CHARGING_EVENT);
+            charging_requested = true;
+        }
 
-        curr_state = _State_Transition(curr_state, errors);
+        curr_state = _State_Transition(curr_state, errors, charging_requested);
 
         if (curr_state == ERRORED) {
             IO_SetDigitalIO(&bms_fault, false);
@@ -86,7 +102,9 @@ void State_ManagerTask(void *argument) {
  * @brief Evaluate one state-machine transition cycle and return the current state.
  * @retval State Current state for this task cycle.
  */
-static State _State_Transition(State curr_state, ErrorMask errors) {
+static State _State_Transition(State curr_state, ErrorMask errors, bool charging_requested) {
+    static uint8_t cycles_since_charging_requested = 0;
+    
     switch (curr_state) {
         case PRE_INIT:
             //Check if everything else is initialized
@@ -95,13 +113,25 @@ static State _State_Transition(State curr_state, ErrorMask errors) {
                     curr_state = ERRORED;
                     State_SetState(ERRORED);
                 } else {
-                    curr_state = OK;
-                    State_SetState(OK);
+                    curr_state = RUNNING;
+                    State_SetState(RUNNING);
                 }   
             }
             break;
-        case OK:
+        case RUNNING:
             if (errors) {
+                curr_state = ERRORED;
+                State_SetState(ERRORED);
+            } else if (charging_requested) {
+                State_SetState(CHARGING);
+                cycles_since_charging_requested = 0;
+            }
+            break;
+        case CHARGING:
+            if (
+                errors || 
+                cycles_since_charging_requested > MAX_CYCLES_WITHOUT_CHARGE_REQUEST
+            ) {
                 curr_state = ERRORED;
                 State_SetState(ERRORED);
             }
@@ -109,8 +139,8 @@ static State _State_Transition(State curr_state, ErrorMask errors) {
         case ERRORED:
             // TODO: check this works for charging
             if (!errors) {
-                curr_state = OK;
-                State_SetState(OK);
+                curr_state = RUNNING;
+                State_SetState(RUNNING);
             }
             break;
         default:
@@ -118,6 +148,11 @@ static State _State_Transition(State curr_state, ErrorMask errors) {
             break;
     }
 
+    // NO OVERFLOW!
+    if (!charging_requested && cycles_since_charging_requested < 250) {
+        cycles_since_charging_requested++;
+    }
+    
     return curr_state;
 }
 

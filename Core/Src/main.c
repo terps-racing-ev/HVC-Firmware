@@ -26,6 +26,7 @@
 #include "lv_can_manager.h"
 #include "io_manager.h"
 #include "acc_manager.h"
+#include "state_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -127,6 +128,18 @@ const osThreadAttr_t Acc_Manager_attributes = {
   .stack_size = sizeof(AccManagerBuffer),
   .priority = (osPriority_t) osPriorityHigh,
 };
+/* Definitions for SPI_IntCallback */
+osThreadId_t SPI_IntCallbackHandle;
+uint32_t SPI_IntCallbackBuffer[ 128 ];
+osStaticThreadDef_t SPI_IntCallbackControlBlock;
+const osThreadAttr_t SPI_IntCallback_attributes = {
+  .name = "SPI_IntCallback",
+  .cb_mem = &SPI_IntCallbackControlBlock,
+  .cb_size = sizeof(SPI_IntCallbackControlBlock),
+  .stack_mem = &SPI_IntCallbackBuffer[0],
+  .stack_size = sizeof(SPI_IntCallbackBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for CAN */
 osMutexId_t CANHandle;
 const osMutexAttr_t CAN_attributes = {
@@ -150,6 +163,7 @@ extern void BMS_CAN_ManagerTask(void *argument);
 extern void IO_ManagerTask(void *argument);
 extern void State_ManagerTask(void *argument);
 extern void Acc_ManagerTask(void *argument);
+extern void SPI_IntCallbackTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -237,6 +251,10 @@ int main(void)
     Error_Handler();
   }
 
+  if (State_Manager_Init() != HAL_OK) {
+    Error_Handler();
+  }
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -257,6 +275,9 @@ int main(void)
 
   /* creation of Acc_Manager */
   Acc_ManagerHandle = osThreadNew(Acc_ManagerTask, NULL, &Acc_Manager_attributes);
+
+  /* creation of SPI_IntCallback */
+  SPI_IntCallbackHandle = osThreadNew(SPI_IntCallbackTask, NULL, &SPI_IntCallback_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -608,7 +629,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : LV_CAN_INT_Pin */
   GPIO_InitStruct.Pin = LV_CAN_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(LV_CAN_INT_GPIO_Port, &GPIO_InitStruct);
 
@@ -618,12 +639,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(EMeter_Therm_GPIO_Port, &GPIO_InitStruct);
 
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_LED_BlinkTask */

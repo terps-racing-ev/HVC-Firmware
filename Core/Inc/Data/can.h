@@ -3,6 +3,7 @@
 
 #include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
+#include "acc.h"
 
 // TODO: replace this include with int types ?
 #include <stdint.h>
@@ -13,7 +14,7 @@
 
 /* CAN Defaults */
 #define CAN_TX_QUEUE_SIZE 128        // Number of messages that can be queued
-#define CAN_RX_QUEUE_SIZE 32        // Number of received messages to buffer
+#define CAN_RX_QUEUE_SIZE 128        // Number of received messages to buffer
 #define CAN_TX_TIMEOUT_MS 100       // Timeout for adding message to queue
 #define CAN_MAX_RETRIES 3           // Maximum transmission retry attempts
 #define CAN_HEARTBEAT_INTERVAL_MS 1000  // Heartbeat message interval (1 second)
@@ -43,7 +44,20 @@ typedef struct {
     uint32_t bus_off_count;         // CAN bus-off events
 } CAN_Statistics_t;
 
+typedef struct {
+    uint8_t module;
+    bool is_bms1;   // Cell voltages can come from bms1 or bms2
+    union {
+        CellTemps_t cell_temps;
+        AmbientTemps_t amb_temps;
+        CellVoltages_t cell_voltages;
+        HeartbeatMessage_t heartbeat;
+    };
+} BMS_Message_t;
 
+typedef union {
+  bool filler;
+} LV_Message_t;
 
 /* Public Functions --------------------------------------------------------*/
 

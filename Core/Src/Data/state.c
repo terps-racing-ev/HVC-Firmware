@@ -2,6 +2,7 @@
 
 /* Public variables ---------------------------------------------------------*/
 Locked_ErrorMask bms_errors = {0};
+osEventFlagsId_t charge_flag = NULL;
 
 /**
  * @brief  Init BMS state to PRE_INIT and inits mutex

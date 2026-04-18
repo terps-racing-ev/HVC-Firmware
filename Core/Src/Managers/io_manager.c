@@ -137,7 +137,6 @@ void IO_ManagerTask(void *argument){
 static void _IO_HandleCompEvent(void)
 {
     
-    
     uint32_t comp_state = HAL_COMP_GetOutputLevel(&hcomp2);
     State bms_state; State_GetState(&bms_state);
     uint32_t batt_volt = IO_GetVSense(&batt);
@@ -151,19 +150,25 @@ static void _IO_HandleCompEvent(void)
     // Conditions to check before allowing AIRTOP to close
     if (
         bms_state == ERRORED || 
-        batt_floating ||
-        comp_state == COMP_OUTPUT_LEVEL_LOW
+        batt_floating
     ) {
         HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
-    } else {
+    } else if (bms_state == CHARGING) { // If charging ignore normal comp signal
         HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_SET);
-    } 
+    } else { // Normal operation
+        if (comp_state == COMP_OUTPUT_LEVEL_LOW) {
+            HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+        } else {
+            HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_SET);
+        }
+    }
+
 }
 
 static void _IO_LowPriority(void)
 {
-    uint8_t io_summary[8];
-    uint8_t io_summary_len;
+    uint8_t can_data[8];
+    uint8_t can_data_len;
     float temp;
     bool sdc_raw;
     bool imd_raw;
@@ -188,8 +193,8 @@ static void _IO_LowPriority(void)
 
     // Send summary message
     _IO_PackIOSummary(
-        io_summary,
-        &io_summary_len,
+        can_data,
+        &can_data_len,
         sdc_raw,
         imd_raw,
         temp,
@@ -197,8 +202,28 @@ static void _IO_LowPriority(void)
     );
     LV_CAN_SendMessage(
         CAN_ID_IO_SUMMARY,
-        io_summary,
-        io_summary_len,
+        can_data,
+        can_data_len,
+        CAN_PRIORITY_NORMAL
+    );
+
+    // TODO: make this max current in an interval
+    _IO_PackCurrentSenseMessage(
+        can_data,
+        &can_data_len,
+        IO_GetCurrent(&cs_low),
+        IO_GetCurrent(&cs_high)
+    );
+    LV_CAN_SendMessage(
+        CAN_ID_IO_CURRENT,
+        can_data,
+        can_data_len,
+        CAN_PRIORITY_NORMAL
+    );
+    BMS_CAN_SendMessage(
+        CAN_ID_IO_CURRENT,
+        can_data,
+        can_data_len,
         CAN_PRIORITY_NORMAL
     );
 }
@@ -265,19 +290,6 @@ static void _IO_HighPriority(void)
 
     timestamp = osKernelGetTickCount();
     (void)Acc_CurrSenseQueue_Push(cs_low_filt_val, cs_high_filt_val, timestamp, 0U);
-
-    _IO_PackCurrentSenseMessage(
-        current_summary,
-        &current_summary_len,
-        cs_low_filt_val,
-        cs_high_filt_val
-    );
-    LV_CAN_SendMessage(
-        CAN_ID_IO_CURRENT,
-        current_summary,
-        current_summary_len,
-        CAN_PRIORITY_NORMAL
-    );
 
     _IO_PackVSenseMessage(
         vsense_summary,

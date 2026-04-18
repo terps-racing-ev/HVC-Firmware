@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "cmsis_os2.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -43,6 +43,7 @@ extern "C" {
 /* USER CODE BEGIN EC */
 extern ADC_HandleTypeDef hadc1;
 extern COMP_HandleTypeDef hcomp2;
+extern osThreadId_t SPI_IntCallbackHandle;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -78,6 +79,7 @@ void Error_Handler(void);
 #define LD3_GPIO_Port GPIOB
 #define LV_CAN_INT_Pin GPIO_PIN_4
 #define LV_CAN_INT_GPIO_Port GPIOB
+#define LV_CAN_INT_EXTI_IRQn EXTI4_IRQn
 #define PL_SIGNAL_Pin GPIO_PIN_5
 #define PL_SIGNAL_GPIO_Port GPIOB
 #define BMS_Fault_Pin GPIO_PIN_6

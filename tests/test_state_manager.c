@@ -95,26 +95,26 @@ void test_STATE_MANAGER_Transition_pre_init_moves_to_ok_when_all_initialized(voi
 
     RunStateManagerTaskSingleIteration();
 
-    AssertCurrentState(OK);
+    AssertCurrentState(RUNNING);
     AssertErrorMask(0U);
 }
 
 void test_STATE_MANAGER_Transition_ok_stays_ok_when_no_faults(void)
 {
-    State_SetState(OK);
+    State_SetState(RUNNING);
     Test_SetKernelTick(1000);
     ref_temp.value = 25.0f;
     SetAllHeartbeats(950); // 50 ticks old, below cutoff
 
     RunStateManagerTaskSingleIteration();
 
-    AssertCurrentState(OK);
+    AssertCurrentState(RUNNING);
     AssertErrorMask(0U);
 }
 
 void test_STATE_MANAGER_Transition_ok_to_errored_when_ref_overtemp(void)
 {
-    State_SetState(OK);
+    State_SetState(RUNNING);
     Test_SetKernelTick(500);
     ref_temp.value = 60.1f;
     SetAllHeartbeats(500); // keep heartbeat fresh so only temp fault is active
@@ -127,7 +127,7 @@ void test_STATE_MANAGER_Transition_ok_to_errored_when_ref_overtemp(void)
 
 void test_STATE_MANAGER_Transition_ok_to_errored_when_any_heartbeat_is_stale(void)
 {
-    State_SetState(OK);
+    State_SetState(RUNNING);
     Test_SetKernelTick(1000);
     ref_temp.value = 20.0f;
     SetAllHeartbeats(950);
@@ -141,7 +141,7 @@ void test_STATE_MANAGER_Transition_ok_to_errored_when_any_heartbeat_is_stale(voi
 
 void test_STATE_MANAGER_Transition_ok_to_errored_when_both_faults_present(void)
 {
-    State_SetState(OK);
+    State_SetState(RUNNING);
     Test_SetKernelTick(1000);
     ref_temp.value = 75.0f;
     SetAllHeartbeats(1000);
@@ -166,13 +166,13 @@ void test_STATE_MANAGER_Transition_errored_to_ok_when_faults_clear(void)
 
     RunStateManagerTaskSingleIteration();
 
-    AssertCurrentState(OK);
+    AssertCurrentState(RUNNING);
     AssertErrorMask(0U);
 }
 
 void test_STATE_MANAGER_Task_sends_state_on_both_buses_and_delays(void)
 {
-    State_SetState(OK);
+    State_SetState(RUNNING);
     Test_SetKernelTick(50);
     ref_temp.value = 25.0f;
     SetAllHeartbeats(50);
@@ -185,8 +185,8 @@ void test_STATE_MANAGER_Task_sends_state_on_both_buses_and_delays(void)
     TEST_ASSERT_EQUAL_UINT32(CAN_ID_STATE, Test_GetLastLvCanId());
     TEST_ASSERT_EQUAL_UINT8(5, Test_GetLastBmsCanLength());
     TEST_ASSERT_EQUAL_UINT8(5, Test_GetLastLvCanLength());
-    TEST_ASSERT_EQUAL_UINT8((uint8_t)OK, Test_GetLastBmsCanDataByte(0));
-    TEST_ASSERT_EQUAL_UINT8((uint8_t)OK, Test_GetLastLvCanDataByte(0));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)RUNNING, Test_GetLastBmsCanDataByte(0));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)RUNNING, Test_GetLastLvCanDataByte(0));
     TEST_ASSERT_EQUAL_UINT8(0U, Test_GetLastBmsCanDataByte(1));
     TEST_ASSERT_EQUAL_UINT8(0U, Test_GetLastBmsCanDataByte(2));
     TEST_ASSERT_EQUAL_UINT8(0U, Test_GetLastBmsCanDataByte(3));
@@ -199,7 +199,7 @@ void test_STATE_MANAGER_Task_packs_error_mask_in_state_message(void)
 {
     ErrorMask expected_mask;
 
-    State_SetState(OK);
+    State_SetState(RUNNING);
     Test_SetKernelTick(1000);
     ref_temp.value = 75.0f;
     SetAllHeartbeats(1000);

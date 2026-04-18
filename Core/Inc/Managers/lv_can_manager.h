@@ -30,6 +30,20 @@ extern "C" {
 #include "can.h"
 #include "state.h"
 #include "spi_can.h"
+#include "debug.h"
+
+typedef bool (*LV_DecodeFunc)(const CAN_Message_t *in, LV_Message_t *out);
+typedef bool (*LV_HandleFunc)(const LV_Message_t *msg);
+
+typedef struct {
+  LV_DecodeFunc decode;
+  LV_HandleFunc handle;
+} LV_CanDispatchEntry;
+
+static const LV_CanDispatchEntry LV_DispatchRegister[] = {
+  {DecodeResetLV, HandleResetLV}
+};
+#define LV_DispatchRegisterCount (sizeof(LV_DispatchRegister)/sizeof(LV_CanDispatchEntry))
 
 /**
   * @brief  Initialize LV CAN manager
@@ -43,6 +57,13 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void);
   * @retval None
   */
 void LV_CAN_ManagerTask(void *argument);
+
+/**
+  * @brief  SPI Int pending callback
+  * @param  argument: Not used
+  * @retval None
+  */
+void SPI_IntCallbackTask(void *argument);
 
 #ifdef __cplusplus
 }

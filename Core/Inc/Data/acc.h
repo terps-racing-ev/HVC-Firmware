@@ -32,17 +32,6 @@ typedef struct {
 } HeartbeatMessage_t;
 
 typedef struct {
-    uint8_t module;
-    bool is_bms1;   // Cell voltages can come from bms1 or bms2
-    union {
-        CellTemps_t cell_temps;
-        AmbientTemps_t amb_temps;
-        CellVoltages_t cell_voltages;
-        HeartbeatMessage_t heartbeat;
-    };
-} BMS_Message_t;
-
-typedef struct {
     osMutexId_t mutex;
     uint32_t heartbeat_last_update;
     bool errored;

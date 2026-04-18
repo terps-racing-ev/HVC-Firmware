@@ -99,19 +99,19 @@ void SOC_UpdateStartingCapacityFromVolt(uint32_t voltage_mv)
 
     // Clamp outside the table range.
     if (voltage_mv >= OCV_Lookup_Table[0U].voltage_mv) {
-        capacity_pctx100 = OCV_Lookup_Table[0U].capacity_pct;
+        capacity_pctx100 = OCV_Lookup_Table[0U].capacity_pctx100;
     } else if (voltage_mv <= OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].voltage_mv) {
-        capacity_pctx100 = OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].capacity_pct;
+        capacity_pctx100 = OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].capacity_pctx100;
     } else {
-        capacity_pctx100 = OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].capacity_pct;
+        capacity_pctx100 = OCV_Lookup_Table[OCV_Lookup_Table_Size - 1U].capacity_pctx100;
 
         for (i = 1U; i < OCV_Lookup_Table_Size; i++) {
             uint32_t v_high = OCV_Lookup_Table[i - 1U].voltage_mv;
             uint32_t v_low = OCV_Lookup_Table[i].voltage_mv;
 
             if ((voltage_mv <= v_high) && (voltage_mv >= v_low)) {
-                uint32_t c_high = OCV_Lookup_Table[i - 1U].capacity_pct;
-                uint32_t c_low = OCV_Lookup_Table[i].capacity_pct;
+                uint32_t c_high = OCV_Lookup_Table[i - 1U].capacity_pctx100;
+                uint32_t c_low = OCV_Lookup_Table[i].capacity_pctx100;
 
                 if (v_high == v_low) {
                     capacity_pctx100 = (capacity_pct_t)c_low;

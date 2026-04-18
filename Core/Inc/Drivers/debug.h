@@ -10,11 +10,26 @@
  * @param out: Output pointer to decoded msg (UNUSED)
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeReset(const CAN_Message_t *in, BMS_Message_t *out);
+bool DecodeResetBMS(const CAN_Message_t *in, BMS_Message_t *out);
 
 /**
  * @brief Reset HVC
  * @param msg: Input pointer to decoded msg (UNUSED)
  * @retval bool
  */
-bool HandleReset(const BMS_Message_t *msg);
+bool HandleResetBMS(const BMS_Message_t *msg);
+
+/**
+ * @brief Decodes reset message
+ * @param in: Input pointer to received CAN message.
+ * @param out: Output pointer to decoded msg (UNUSED)
+ * @retval bool: Returns true if message is meant for this decoder, false if not.
+ */
+bool DecodeResetLV(const CAN_Message_t *in, LV_Message_t *out);
+
+/**
+ * @brief Reset HVC
+ * @param msg: Input pointer to decoded msg (UNUSED)
+ * @retval bool
+ */
+bool HandleResetLV(const LV_Message_t *msg);

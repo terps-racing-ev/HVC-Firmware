@@ -7,7 +7,9 @@
 
 typedef enum {
     PRE_INIT = 0,
-    OK,
+    RUNNING,
+    CHARGING,
+    BALANCING,
     ERRORED
 } State;
 
@@ -39,6 +41,10 @@ extern Locked_ErrorMask bms_errors;
 extern uint8_t lv_can_initialized;
 extern uint8_t bms_can_initialized;
 extern uint8_t io_initialized;
+
+// Flag for charging message
+#define CHARGING_EVENT 1
+extern osEventFlagsId_t charge_flag;
 
 HAL_StatusTypeDef State_InitState(Locked_State *state);
 void State_GetState(State *state);

@@ -12,6 +12,9 @@
 #define CAN_ID_ACC_SUMMARY      0x004001F5
 #define CAN_ID_RESET            0x004001F6
 #define CAN_ID_IO_VSENSE        0x004001F7
+#define CAN_ID_CURRENT_LIMIT   0x004001F8
+#define CAN_ID_CHARGING_REQUEST 0x004001F9 // TODO: set real charging request CAN ID
+
 
 
 /* BMB IDs -------------------------------------------------------------------*/

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a DBC file for HVC IO/state/SOC/ACC summary CAN messages.
+"""Generate a DBC file for HVC-originated CAN messages.
 
 The script reads CAN IDs from Core/Inc/Config/can_id.h and emits a DBC with
-the IO summary, IO current, IO VSense, state, SOC, and ACC summary messages
-packed exactly as in firmware.
+messages packed exactly as in firmware.
 """
 
 from __future__ import annotations
@@ -20,11 +19,13 @@ DEFAULT_OUTPUT = ROOT_DIR / "io_messages.dbc"
 
 CAN_ID_NAMES = (
     "CAN_ID_IO_SUMMARY",
-    "CAN_ID_IO_CURRENT",
-    "CAN_ID_IO_VSENSE",
     "CAN_ID_STATE",
+    "CAN_ID_ERRORED_PANIC",
+    "CAN_ID_IO_CURRENT",
     "CAN_ID_SOC",
     "CAN_ID_ACC_SUMMARY",
+    "CAN_ID_IO_VSENSE",
+    "CAN_ID_CURRENT_LIMIT",
 )
 
 
@@ -32,7 +33,7 @@ def _parse_can_ids(header_path: Path) -> dict[str, int]:
     """Extract selected CAN ID #defines from the header file."""
     text = header_path.read_text(encoding="utf-8")
     pattern = re.compile(
-        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_IO_CURRENT|CAN_ID_IO_VSENSE|CAN_ID_STATE|CAN_ID_SOC|CAN_ID_ACC_SUMMARY)\s+"
+        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_STATE|CAN_ID_ERRORED_PANIC|CAN_ID_IO_CURRENT|CAN_ID_SOC|CAN_ID_ACC_SUMMARY|CAN_ID_IO_VSENSE|CAN_ID_CURRENT_LIMIT)\s+"
         r"(0x[0-9A-Fa-f]+|\d+)\b",
         re.MULTILINE,
     )
@@ -137,24 +138,26 @@ def _error_signal_name(error_name: str) -> str:
 
 def _generate_dbc_text(
     io_summary_id: int,
-    io_current_id: int,
-    io_vsense_id: int,
     state_id: int,
+    errored_panic_id: int,
+    io_current_id: int,
     soc_id: int,
     acc_summary_id: int,
+    io_vsense_id: int,
+    current_limit_id: int,
     error_bits: list[tuple[str, int]],
     include_raw_error_mask: bool,
     node_name: str,
 ) -> str:
-    """Build DBC content for IO summary/current/vsense, state, SOC, and ACC summary messages."""
+    """Build DBC content for HVC-originated messages."""
     io_summary_dbc_id = _dbc_frame_id(io_summary_id)
-    io_current_dbc_id = _dbc_frame_id(io_current_id)
-    io_vsense_dbc_id = _dbc_frame_id(io_vsense_id)
     state_dbc_id = _dbc_frame_id(state_id)
+    errored_panic_dbc_id = _dbc_frame_id(errored_panic_id)
+    io_current_dbc_id = _dbc_frame_id(io_current_id)
     soc_dbc_id = _dbc_frame_id(soc_id)
     acc_summary_dbc_id = _dbc_frame_id(acc_summary_id)
-    # Add VREF debug CAN message (ID 0x000000DB)
-    vref_debug_dbc_id = _dbc_frame_id(0x000000DB)
+    io_vsense_dbc_id = _dbc_frame_id(io_vsense_id)
+    current_limit_dbc_id = _dbc_frame_id(current_limit_id)
 
     error_signal_lines: list[str] = []
     error_value_lines: list[str] = []
@@ -231,6 +234,8 @@ BO_ {state_dbc_id} BMS_State: 5 {node_name}
  SG_ BMS_State : 0|8@1+ (1,0) [0|255] "" Vector__XXX
 {raw_error_mask_line}{error_signals_block}
 
+BO_ {errored_panic_dbc_id} Errored_Panic: 0 {node_name}
+
 BO_ {soc_dbc_id} SOC: 8 {node_name}
  SG_ SOC_Percent : 0|16@1+ (0.01,0) [0|100] "%" Vector__XXX
  SG_ SOC_Capacity_As : 16|16@1+ (1,0) [0|65535] "A*s" Vector__XXX
@@ -242,11 +247,11 @@ BO_ {acc_summary_dbc_id} ACC_Summary: 8 {node_name}
  SG_ Acc_Temp_Min_C : 32|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
  SG_ Acc_Temp_Max_C : 48|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
 
-BO_ {vref_debug_dbc_id} VREF_Debug: 6 {node_name}
- SG_ VREFINT_ADC : 0|16@1+ (1,0) [0|65535] "counts" Vector__XXX
- SG_ VREF_mV : 16|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
+BO_ {current_limit_dbc_id} Current_Limit: 8 {node_name}
+ SG_ Negative_Current_Limit_mA : 0|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
+ SG_ Positive_Current_Limit_mA : 32|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
 
-VAL_ {state_dbc_id} BMS_State 0 "PRE_INIT" 1 "OK" 2 "ERRORED" ;
+VAL_ {state_dbc_id} BMS_State 0 "PRE_INIT" 1 "RUNNING" 2 "CHARGING" 3 "BALANCING" 4 "ERRORED" ;
 {error_values_block}
 '''
 
@@ -296,11 +301,13 @@ def main() -> int:
     error_bits = _parse_error_bits(state_header)
     dbc_text = _generate_dbc_text(
         io_summary_id=can_ids["CAN_ID_IO_SUMMARY"],
-        io_current_id=can_ids["CAN_ID_IO_CURRENT"],
-        io_vsense_id=can_ids["CAN_ID_IO_VSENSE"],
         state_id=can_ids["CAN_ID_STATE"],
+        errored_panic_id=can_ids["CAN_ID_ERRORED_PANIC"],
+        io_current_id=can_ids["CAN_ID_IO_CURRENT"],
         soc_id=can_ids["CAN_ID_SOC"],
         acc_summary_id=can_ids["CAN_ID_ACC_SUMMARY"],
+        io_vsense_id=can_ids["CAN_ID_IO_VSENSE"],
+        current_limit_id=can_ids["CAN_ID_CURRENT_LIMIT"],
         error_bits=error_bits,
         include_raw_error_mask=args.include_raw_error_mask,
         node_name=args.node_name,
@@ -312,11 +319,13 @@ def main() -> int:
     print(f"Generated DBC: {output_path}")
     print(
         f"Used CAN IDs: CAN_ID_IO_SUMMARY=0x{can_ids['CAN_ID_IO_SUMMARY']:08X}, "
-        f"CAN_ID_IO_CURRENT=0x{can_ids['CAN_ID_IO_CURRENT']:08X}, "
-        f"CAN_ID_IO_VSENSE=0x{can_ids['CAN_ID_IO_VSENSE']:08X}, "
         f"CAN_ID_STATE=0x{can_ids['CAN_ID_STATE']:08X}, "
+        f"CAN_ID_ERRORED_PANIC=0x{can_ids['CAN_ID_ERRORED_PANIC']:08X}, "
+        f"CAN_ID_IO_CURRENT=0x{can_ids['CAN_ID_IO_CURRENT']:08X}, "
         f"CAN_ID_SOC=0x{can_ids['CAN_ID_SOC']:08X}, "
-        f"CAN_ID_ACC_SUMMARY=0x{can_ids['CAN_ID_ACC_SUMMARY']:08X}"
+        f"CAN_ID_ACC_SUMMARY=0x{can_ids['CAN_ID_ACC_SUMMARY']:08X}, "
+        f"CAN_ID_IO_VSENSE=0x{can_ids['CAN_ID_IO_VSENSE']:08X}, "
+        f"CAN_ID_CURRENT_LIMIT=0x{can_ids['CAN_ID_CURRENT_LIMIT']:08X}"
     )
     return 0
 

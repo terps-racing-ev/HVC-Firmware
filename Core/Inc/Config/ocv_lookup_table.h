@@ -10,7 +10,7 @@ typedef uint16_t capacity_pct_t;
 
 typedef struct {
     voltage_mv_t voltage_mv;
-    capacity_pct_t capacity_pct;  // Percent scaled by 100
+    capacity_pct_t capacity_pctx100;  // Percent scaled by 100
 } OCV_Voltage_Lookup_t;
 
 extern OCV_Voltage_Lookup_t OCV_Lookup_Table[];

@@ -140,10 +140,10 @@ static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
         LV_CAN_SendMessage(msg->id, msg->data, msg->length, msg->priority);
     }
 
-    for (int i = 0; i < DispatchRegisterCount; i++) {
+    for (int i = 0; i < BMS_DispatchRegisterCount; i++) {
         // Decode returns true only when message is for it
-        if (DispatchRegister[i].decode(msg, &decoded_msg)) {
-            DispatchRegister[i].handle(&decoded_msg);
+        if (BMS_DispatchRegister[i].decode(msg, &decoded_msg)) {
+            BMS_DispatchRegister[i].handle(&decoded_msg);
         }
     }
 

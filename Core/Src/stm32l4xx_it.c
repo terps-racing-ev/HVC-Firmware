@@ -162,6 +162,24 @@ void DebugMon_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles EXTI line4 interrupt.
+  */
+void EXTI4_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI4_IRQn 0 */
+  
+  // Handle CAN interrupt
+  // Set flag so we don't do SPI transactions in ISR
+  osThreadFlagsSet(SPI_IntCallbackHandle, 0x0001);
+
+  /* USER CODE END EXTI4_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(LV_CAN_INT_Pin);
+  /* USER CODE BEGIN EXTI4_IRQn 1 */
+
+  /* USER CODE END EXTI4_IRQn 1 */
+}
+
+/**
   * @brief This function handles CAN1 TX interrupt.
   */
 void CAN1_TX_IRQHandler(void)

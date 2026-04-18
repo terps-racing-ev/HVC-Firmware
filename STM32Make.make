@@ -82,6 +82,7 @@ Core/Src/Data/moving_average.c \
 Core/Src/Data/soc.c \
 Core/Src/Data/state.c \
 Core/Src/Drivers/bmb.c \
+Core/Src/Drivers/charging.c \
 Core/Src/Drivers/curr_sense.c \
 Core/Src/Drivers/debug.c \
 Core/Src/Drivers/mcp2515.c \

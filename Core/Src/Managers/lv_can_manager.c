@@ -25,7 +25,10 @@ static osMessageQueueId_t LV_CAN_TxQueueHandle = NULL;
 static CAN_Statistics_t lv_can_stats = {0};
 
 /* Private function prototypes -----------------------------------------------*/
-static HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg);
+HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg);
+HAL_StatusTypeDef LV_CAN_ProcessRXMessage(CAN_Message_t *msg);
+static void _CONVERT_UCAN_TO_CAN_MESSAGE(uCAN_MSG *in, CAN_Message_t *out);
+static void _CONVERT_CAN_MESSAGE_TO_UCAN(CAN_Message_t *in, uCAN_MSG *out);
 
 /* Public variables ---------------------------------------------------------*/
 
@@ -63,48 +66,16 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
   * @retval None
   */
 void LV_CAN_ManagerTask(void *argument){
-  CAN_Message_t tx_message;
+    CAN_Message_t can_message;
+  
+    for (;;) {
 
-  for (;;) {
-
-    // No RX on LV bus
-
-    while (osMessageQueueGet(LV_CAN_TxQueueHandle, &tx_message, NULL, 0) == osOK) {
-        // Converting to uCAN_MSG type
-        uCAN_MSG spi_message = {0};
-        uint8_t attempt = 0;
-        uint8_t tx_success = 0;
-
-        spi_message.frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
-        spi_message.frame.id = tx_message.id;
-        spi_message.frame.dlc = (tx_message.length <= 8) ? tx_message.length : 8;
-        spi_message.frame.data0 = tx_message.data[0];
-        spi_message.frame.data1 = tx_message.data[1];
-        spi_message.frame.data2 = tx_message.data[2];
-        spi_message.frame.data3 = tx_message.data[3];
-        spi_message.frame.data4 = tx_message.data[4];
-        spi_message.frame.data5 = tx_message.data[5];
-        spi_message.frame.data6 = tx_message.data[6];
-        spi_message.frame.data7 = tx_message.data[7];
-
-        while (attempt < CAN_MAX_RETRIES) {
-            if (CANSPI_Transmit(&spi_message)) {
-                lv_can_stats.tx_success_count++;
-                tx_success = true;
-                break;
-            }
-            attempt++;
-            osDelay(1);
+        while (osMessageQueueGet(LV_CAN_TxQueueHandle, &can_message, NULL, 0) == osOK) {
+            LV_CAN_TransmitMessage(&can_message);
         }
 
-        if (tx_success != true) {
-            lv_can_stats.tx_error_count++;
-        }
-    }
-
-    osDelay(1);
-
-    // TODO: handle bus errors (bus off, tx passive, rx passive)
+        osDelay(1);
+        // TODO: handle bus errors (bus off, tx passive, rx passive)
     }
 }
 
@@ -152,7 +123,7 @@ HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length,
     return HAL_OK;
 }
 
-static HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg) {
+HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg) {
     uCAN_MSG rx_msg;
     uint8_t retry_count = 0;
     uint8_t status = 0;
@@ -163,19 +134,8 @@ static HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg) {
         (msg->id > CAN_EFF_MASK)) {
         return HAL_ERROR;
     }
-    // Convert to spi_can type
-    rx_msg.frame.idType = (uint8_t) dEXTENDED_CAN_MSG_ID_2_0B; // Extended ID
-    rx_msg.frame.id = msg->id & 0x1FFFFFFFUL; // Filter out high bits of extended id
-    rx_msg.frame.dlc = msg->length;
-    // TODO: UGLY, use the array to make this prettier
-    rx_msg.frame.data0 = msg->data[0];
-    rx_msg.frame.data1 = msg->data[1];
-    rx_msg.frame.data2 = msg->data[2];
-    rx_msg.frame.data3 = msg->data[3];
-    rx_msg.frame.data4 = msg->data[4];
-    rx_msg.frame.data5 = msg->data[5];
-    rx_msg.frame.data6 = msg->data[6];
-    rx_msg.frame.data7 = msg->data[7];
+
+    _CONVERT_CAN_MESSAGE_TO_UCAN(msg, &rx_msg);
 
     // Retry a couple times before giving up
     while (retry_count < CAN_MAX_RETRIES) {
@@ -195,4 +155,88 @@ static HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg) {
     // All retries failed
     lv_can_stats.tx_error_count++;
     return HAL_ERROR;
+}
+
+HAL_StatusTypeDef LV_CAN_ProcessRXMessage(CAN_Message_t *msg) {
+    LV_Message_t decoded_msg;
+    
+    if (msg == NULL){
+        return HAL_ERROR;
+    }
+
+    for (int i = 0; i < LV_DispatchRegisterCount; i++) {
+        // Decode returns true only when message is for it
+        if (LV_DispatchRegister[i].decode(msg, &decoded_msg)) {
+            LV_DispatchRegister[i].handle(&decoded_msg);
+        }
+    }
+
+    return HAL_OK;
+}
+
+/**
+  * @brief  SPI Int pending callback
+  * @param  argument: Not used
+  * @retval None
+  */
+void SPI_IntCallbackTask(void *argument)
+{   
+    uCAN_MSG rx_msg;
+    CAN_Message_t msg;
+
+    // Clear out queue so the SPI interrupt gets cleared at start
+    while (CANSPI_Receive(&rx_msg)) {
+        _CONVERT_UCAN_TO_CAN_MESSAGE(&rx_msg, &msg);
+        LV_CAN_ProcessRXMessage(&msg);
+    }
+
+    for (;;) {
+        osThreadFlagsWait(0x0001, osFlagsWaitAny, osWaitForever);
+        osThreadFlagsClear(0x0001);
+        
+        if (CANSPI_isRxErrorPassive()) {
+            // TODO: handle errors
+            // HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
+        }
+
+        while (CANSPI_Receive(&rx_msg)) {
+            _CONVERT_UCAN_TO_CAN_MESSAGE(&rx_msg, &msg);
+            LV_CAN_ProcessRXMessage(&msg);
+        }
+
+        osDelay(50);
+    }
+}
+
+static void _CONVERT_CAN_MESSAGE_TO_UCAN(CAN_Message_t *in, uCAN_MSG *out) {
+        out->frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
+        out->frame.id = in->id;
+        out->frame.dlc = (in->length <= 8) ? in->length : 8;
+        out->frame.data0 = in->data[0];
+        out->frame.data1 = in->data[1];
+        out->frame.data2 = in->data[2];
+        out->frame.data3 = in->data[3];
+        out->frame.data4 = in->data[4];
+        out->frame.data5 = in->data[5];
+        out->frame.data6 = in->data[6];
+        out->frame.data7 = in->data[7];
+}
+
+static void _CONVERT_UCAN_TO_CAN_MESSAGE(uCAN_MSG *in, CAN_Message_t *out) {
+    if ((in == NULL) || (out == NULL)) {
+        return;
+    }
+
+    out->id = in->frame.id;
+    out->length = (in->frame.dlc <= CAN_MAX_DLEN) ? in->frame.dlc : CAN_MAX_DLEN;
+    out->data[0] = in->frame.data0;
+    out->data[1] = in->frame.data1;
+    out->data[2] = in->frame.data2;
+    out->data[3] = in->frame.data3;
+    out->data[4] = in->frame.data4;
+    out->data[5] = in->frame.data5;
+    out->data[6] = in->frame.data6;
+    out->data[7] = in->frame.data7;
+    out->priority = CAN_PRIORITY_NORMAL;
+    out->timestamp = osKernelGetTickCount();
 }

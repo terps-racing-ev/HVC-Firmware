@@ -29,7 +29,9 @@
 
 #define CHECK_MODULE_TIMEOUT 0
 #define CHECK_REF_OVERTEMP 1
-#define CHECK_FLOATING_BATT 1
+#define CHECK_FLOATING_BATT 0
+
+#define MAX_CYCLES_WITHOUT_CHARGE_REQUEST 10
 
 /**
   * @brief  Initialize State manager

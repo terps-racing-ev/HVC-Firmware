@@ -57,6 +57,7 @@ HAL_StatusTypeDef IO_InitAnalogIO(AnalogIO* aio, const char* mutex_name) {
 
     return HAL_OK;
 }
+
 HAL_StatusTypeDef IO_InitTemp(Temp* temp, const char* mutex_name) {
     if (temp == NULL || mutex_name == NULL) {
         return HAL_ERROR;
@@ -76,6 +77,7 @@ HAL_StatusTypeDef IO_InitTemp(Temp* temp, const char* mutex_name) {
 
     return HAL_OK;
 }
+
 HAL_StatusTypeDef IO_InitCurrent(Current* current, const char* mutex_name) {
     if (current == NULL || mutex_name == NULL) {
         return HAL_ERROR;
