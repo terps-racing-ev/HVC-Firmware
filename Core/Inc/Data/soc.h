@@ -50,6 +50,15 @@ void Soc_UpdateDeltaFromCurrSample(int32_t cs_low, int32_t cs_high, uint32_t tim
 void SOC_UpdateStartingCapacityFromVolt(uint32_t voltage_mv);
 
 /**
+ * @brief Reverse lookup from SOC to estimated OCV using the OCV table.
+ *
+ * @param soc_pctx100 Input SOC in percent scaled by 100.
+ *
+ * @return Estimated OCV voltage in mV.
+ */
+uint16_t SOC_GetOcvFromSoc(uint16_t soc_pctx100);
+
+/**
  * @brief Gets a thread-safe snapshot of current SOC tracking values.
  *
  * @param snapshot Output pointer for SOC snapshot values.

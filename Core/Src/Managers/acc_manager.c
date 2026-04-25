@@ -21,16 +21,17 @@
 #include "soc.h"
 #include "can.h"
 #include "can_id.h"
+#include "current_limit.h"
 
 static osMessageQueueId_t Acc_CurrSenseQueueHandle = NULL;
+uint8_t acc_initialized = 0;
 
 static void _Acc_PackSocMessage(uint8_t *data, uint8_t *length, const SOC_Snapshot_t *snapshot);
 static void _Acc_PackSummaryMessage(uint8_t *data, uint8_t *length, const Acc_Summary_t *summary);
 static void _Acc_PackCurrentLimitMessage(
   uint8_t *data,
   uint8_t *length,
-  uint32_t negative_current_limit_mA,
-  uint32_t positive_current_limit_mA
+  const CurrLimitOutput_t *curr_limit_output
 );
 
 HAL_StatusTypeDef Acc_Manager_Init(void)
@@ -64,21 +65,22 @@ HAL_StatusTypeDef Acc_Manager_Init(void)
     return HAL_ERROR;
   }
 
+  acc_initialized = 1;
+
   return HAL_OK;
 }
 
 void Acc_ManagerTask(void *argument)
 {
   Acc_CurrSenseSample_t sample;
-  uint8_t soc_data[8];
-  uint8_t soc_len;
+  uint8_t can_data[8];
+  uint8_t can_len;
   Acc_Summary_t summary;
-  uint8_t summary_data[8];
-  uint8_t current_limit_data[8];
-  uint8_t summary_len, modules_checked;
-  uint8_t current_limit_len;
+  uint8_t modules_checked;
   bool soc_estimated = false;
   SOC_Snapshot_t soc_snapshot;
+  CurrLimitInput_t curr_limit_input;
+  CurrLimitOutput_t curr_limit_output;
 
   (void)argument;
 
@@ -99,34 +101,38 @@ void Acc_ManagerTask(void *argument)
 
       SOC_GetSnapshot(&soc_snapshot);
 
-      _Acc_PackSocMessage(soc_data, &soc_len, &soc_snapshot);
+      if (soc_estimated) {
+        curr_limit_input.ocv_voltage_mV = SOC_GetOcvFromSoc(soc_snapshot.soc_pctx100);
+        CurrLimit_Calculate(&curr_limit_input, &curr_limit_output);
+        _Acc_PackCurrentLimitMessage(can_data, &can_len, &curr_limit_output);
+        (void)BMS_CAN_SendMessage(
+          CAN_ID_CURRENT_LIMIT,
+          can_data,
+          can_len,
+          CAN_PRIORITY_NORMAL
+        );
+        (void)LV_CAN_SendMessage(
+          CAN_ID_CURRENT_LIMIT,
+          can_data,
+          can_len,
+          CAN_PRIORITY_NORMAL
+        );
+      }
+
+      _Acc_PackSocMessage(can_data, &can_len, &soc_snapshot);
       (void)LV_CAN_SendMessage(
         CAN_ID_SOC,
-        soc_data,
-        soc_len,
+        can_data,
+        can_len,
         CAN_PRIORITY_NORMAL
       );
 
 
-      _Acc_PackSummaryMessage(summary_data, &summary_len, &summary);
+      _Acc_PackSummaryMessage(can_data, &can_len, &summary);
       (void)LV_CAN_SendMessage(
         CAN_ID_ACC_SUMMARY,
-        summary_data,
-        summary_len,
-        CAN_PRIORITY_NORMAL
-      );
-
-      _Acc_PackCurrentLimitMessage(current_limit_data, &current_limit_len, 100000U, 100000U);
-      (void)BMS_CAN_SendMessage(
-        CAN_ID_CURRENT_LIMIT,
-        current_limit_data,
-        current_limit_len,
-        CAN_PRIORITY_NORMAL
-      );
-      (void)LV_CAN_SendMessage(
-        CAN_ID_CURRENT_LIMIT,
-        current_limit_data,
-        current_limit_len,
+        can_data,
+        can_len,
         CAN_PRIORITY_NORMAL
       );
     }
@@ -209,21 +215,20 @@ static void _Acc_PackSummaryMessage(uint8_t *data, uint8_t *length, const Acc_Su
 static void _Acc_PackCurrentLimitMessage(
   uint8_t *data,
   uint8_t *length,
-  uint32_t negative_current_limit_mA,
-  uint32_t positive_current_limit_mA
+  const CurrLimitOutput_t *curr_limit_output
 )
 {
-  if ((data == NULL) || (length == NULL)) {
+  if ((data == NULL) || (length == NULL) || (curr_limit_output == NULL)) {
     return;
   }
 
-  data[0] = (uint8_t)(negative_current_limit_mA & 0xFFU);
-  data[1] = (uint8_t)((negative_current_limit_mA >> 8U) & 0xFFU);
-  data[2] = (uint8_t)((negative_current_limit_mA >> 16U) & 0xFFU);
-  data[3] = (uint8_t)((negative_current_limit_mA >> 24U) & 0xFFU);
-  data[4] = (uint8_t)(positive_current_limit_mA & 0xFFU);
-  data[5] = (uint8_t)((positive_current_limit_mA >> 8U) & 0xFFU);
-  data[6] = (uint8_t)((positive_current_limit_mA >> 16U) & 0xFFU);
-  data[7] = (uint8_t)((positive_current_limit_mA >> 24U) & 0xFFU);
+  data[0] = (uint8_t)(curr_limit_output->neg_curr_limit_mA & 0xFFU);
+  data[1] = (uint8_t)((curr_limit_output->neg_curr_limit_mA >> 8U) & 0xFFU);
+  data[2] = (uint8_t)((curr_limit_output->neg_curr_limit_mA >> 16U) & 0xFFU);
+  data[3] = (uint8_t)((curr_limit_output->neg_curr_limit_mA >> 24U) & 0xFFU);
+  data[4] = (uint8_t)(curr_limit_output->pos_curr_limit_mA & 0xFFU);
+  data[5] = (uint8_t)((curr_limit_output->pos_curr_limit_mA >> 8U) & 0xFFU);
+  data[6] = (uint8_t)((curr_limit_output->pos_curr_limit_mA >> 16U) & 0xFFU);
+  data[7] = (uint8_t)((curr_limit_output->pos_curr_limit_mA >> 24U) & 0xFFU);
   *length = 8U;
 }

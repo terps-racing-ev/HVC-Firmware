@@ -1,5 +1,6 @@
 #include "can_id.h"
 #include "can.h"
+#include "spi_can.h"
 #include "acc.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -25,11 +26,11 @@ bool HandleResetBMS(const BMS_Message_t *msg);
  * @param out: Output pointer to decoded msg (UNUSED)
  * @retval bool: Returns true if message is meant for this decoder, false if not.
  */
-bool DecodeResetLV(const CAN_Message_t *in, LV_Message_t *out);
+bool DecodeResetLV(const uCAN_MSG *in);
 
 /**
  * @brief Reset HVC
  * @param msg: Input pointer to decoded msg (UNUSED)
  * @retval bool
  */
-bool HandleResetLV(const LV_Message_t *msg);
+bool HandleResetLV(const uCAN_MSG *msg);

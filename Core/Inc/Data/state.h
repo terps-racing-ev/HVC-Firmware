@@ -21,6 +21,7 @@ typedef struct {
 extern Locked_State bms_state;
 
 typedef uint32_t ErrorMask;
+typedef uint32_t FloatingInputMask;
 
 typedef struct {
     osMutexId_t mutex;
@@ -31,15 +32,23 @@ typedef enum {
     BMS_ERR_REF_OVER_TEMP = 0,
     BMS_ERR_MODULE_TIMEOUT = 1 << 0,
     BMS_ERR_BATT_FLOATING = 1 << 1,
-
+    BMS_ERR_CURR_SENSE_FLOATING = 1 << 2,
+    BMS_ERR_BMB_ERROR = 1 << 3,
     BMS_ERR_DEFAULT
 } ErrorBit;
 
+typedef enum {
+    BMS_FLOATING_INPUT_BATT = 1U << 0,
+    BMS_FLOATING_INPUT_CURR_SENSE = 1U << 1,
+} FloatingInputBit;
+
 extern Locked_ErrorMask bms_errors;
+extern osEventFlagsId_t floating_input_flag;
 
 // True after initialiation
-extern uint8_t lv_can_initialized;
 extern uint8_t bms_can_initialized;
+extern uint8_t lv_can_initialized;
+extern uint8_t acc_initialized;
 extern uint8_t io_initialized;
 
 // Flag for charging message

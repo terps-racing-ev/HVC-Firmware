@@ -32,8 +32,8 @@ extern "C" {
 #include "spi_can.h"
 #include "debug.h"
 
-typedef bool (*LV_DecodeFunc)(const CAN_Message_t *in, LV_Message_t *out);
-typedef bool (*LV_HandleFunc)(const LV_Message_t *msg);
+typedef bool (*LV_DecodeFunc)(const uCAN_MSG *in);
+typedef bool (*LV_HandleFunc)(const uCAN_MSG *msg);
 
 typedef struct {
   LV_DecodeFunc decode;

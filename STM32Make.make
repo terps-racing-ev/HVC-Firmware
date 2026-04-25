@@ -84,6 +84,7 @@ Core/Src/Data/state.c \
 Core/Src/Drivers/bmb.c \
 Core/Src/Drivers/charging.c \
 Core/Src/Drivers/curr_sense.c \
+Core/Src/Drivers/current_limit.c \
 Core/Src/Drivers/debug.c \
 Core/Src/Drivers/mcp2515.c \
 Core/Src/Drivers/spi_can.c \

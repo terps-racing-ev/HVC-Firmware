@@ -140,11 +140,6 @@ const osThreadAttr_t SPI_IntCallback_attributes = {
   .stack_size = sizeof(SPI_IntCallbackBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for CAN */
-osMutexId_t CANHandle;
-const osMutexAttr_t CAN_attributes = {
-  .name = "CAN"
-};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -217,9 +212,6 @@ int main(void)
 
   /* Init scheduler */
   osKernelInitialize();
-  /* Create the mutex(es) */
-  /* creation of CAN */
-  CANHandle = osMutexNew(&CAN_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -716,14 +708,25 @@ void Error_Handler(void)
   TxHeader.StdId = 0;
   TxHeader.RTR = CAN_RTR_DATA;
   TxHeader.IDE = CAN_ID_EXT;
-  TxHeader.DLC = 0;
+  TxHeader.DLC = 4;
   TxHeader.TransmitGlobalTime = DISABLE;
+
+  data[0] = bms_can_initialized;
+  data[1] = lv_can_initialized;
+  data[2] = acc_initialized;
+  data[3] = io_initialized;
   
   uCAN_MSG spi_message = {0};
 
   spi_message.frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
   spi_message.frame.id = CAN_ID_ERRORED_PANIC;
-  spi_message.frame.dlc = 0;
+  spi_message.frame.dlc = 4;
+
+  spi_message.frame.data0 = bms_can_initialized;
+  spi_message.frame.data1 = lv_can_initialized;
+  spi_message.frame.data2 = acc_initialized;
+  spi_message.frame.data3 = io_initialized;
+
 
   while (1)
   {

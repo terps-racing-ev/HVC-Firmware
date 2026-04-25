@@ -138,6 +138,53 @@ void SOC_UpdateStartingCapacityFromVolt(uint32_t voltage_mv)
 }
 
 /**
+ * @brief Reverse lookup from SOC (pctx100) to OCV (mV).
+ */
+uint16_t SOC_GetOcvFromSoc(uint16_t soc_pctx100)
+{
+    size_t i;
+    uint32_t last_idx;
+
+    if (OCV_Lookup_Table_Size == 0U) {
+        return 0U;
+    }
+
+    if (OCV_Lookup_Table_Size == 1U) {
+        return OCV_Lookup_Table[0U].voltage_mv;
+    }
+
+    last_idx = OCV_Lookup_Table_Size - 1U;
+
+    // Clamp outside table SOC range.
+    if (soc_pctx100 >= OCV_Lookup_Table[0U].capacity_pctx100) {
+        return OCV_Lookup_Table[0U].voltage_mv;
+    }
+
+    if (soc_pctx100 <= OCV_Lookup_Table[last_idx].capacity_pctx100) {
+        return OCV_Lookup_Table[last_idx].voltage_mv;
+    }
+
+    for (i = 1U; i < OCV_Lookup_Table_Size; i++) {
+        uint32_t soc_hi = OCV_Lookup_Table[i - 1U].capacity_pctx100;
+        uint32_t soc_lo = OCV_Lookup_Table[i].capacity_pctx100;
+
+        if ((soc_pctx100 <= soc_hi) && (soc_pctx100 >= soc_lo)) {
+            uint32_t v_hi = OCV_Lookup_Table[i - 1U].voltage_mv;
+            uint32_t v_lo = OCV_Lookup_Table[i].voltage_mv;
+            uint32_t dsoc = soc_hi - soc_lo;
+
+            if (dsoc == 0U) {
+                return (uint16_t)v_lo;
+            }
+
+            return (uint16_t)(v_lo + (((v_hi - v_lo) * (soc_pctx100 - soc_lo)) / dsoc));
+        }
+    }
+
+    return OCV_Lookup_Table[last_idx].voltage_mv;
+}
+
+/**
  * @brief Copy current SOC snapshot in a thread-safe way.
  */
 void SOC_GetSnapshot(SOC_Snapshot_t* snapshot) {

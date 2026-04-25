@@ -17,6 +17,8 @@ static size_t mutex_new_result_count = 0;
 static size_t mutex_new_result_index = 0;
 static uint32_t mutex_new_call_count = 0;
 
+static uint32_t test_event_flags = 0U;
+
 static HAL_StatusTypeDef can_activate_notification_result = HAL_OK;
 static uint32_t can_activate_notification_call_count = 0;
 
@@ -49,6 +51,7 @@ COMP_HandleTypeDef hcomp2;
 __attribute__((weak)) uint8_t io_initialized = 0;
 __attribute__((weak)) uint8_t bms_can_initialized = 0;
 __attribute__((weak)) uint8_t lv_can_initialized = 0;
+__attribute__((weak)) osEventFlagsId_t floating_input_flag = (osEventFlagsId_t)0x1;
 __attribute__((weak)) Temp ref_temp = {0};
 __attribute__((weak)) Acc_Module_t *acc[NUM_ACC_MODULES] = {0};
 
@@ -76,6 +79,7 @@ void Test_Stubs_Reset(void)
     mutex_new_result_count = 0;
     mutex_new_result_index = 0;
     mutex_new_call_count = 0;
+    test_event_flags = 0U;
     can_activate_notification_result = HAL_OK;
     can_activate_notification_call_count = 0;
     can_add_tx_result = HAL_OK;
@@ -265,6 +269,42 @@ osStatus_t osMutexRelease(osMutexId_t mutex_id)
 {
     (void)mutex_id;
     return osOK;
+}
+
+osEventFlagsId_t osEventFlagsNew(const osEventFlagsAttr_t *attr)
+{
+    (void)attr;
+    test_event_flags = 0U;
+    return (osEventFlagsId_t)0x1;
+}
+
+uint32_t osEventFlagsSet(osEventFlagsId_t ef_id, uint32_t flags)
+{
+    (void)ef_id;
+    test_event_flags |= flags;
+    return test_event_flags;
+}
+
+uint32_t osEventFlagsClear(osEventFlagsId_t ef_id, uint32_t flags)
+{
+    (void)ef_id;
+    test_event_flags &= ~flags;
+    return test_event_flags;
+}
+
+uint32_t osEventFlagsGet(osEventFlagsId_t ef_id)
+{
+    (void)ef_id;
+    return test_event_flags;
+}
+
+uint32_t osEventFlagsWait(osEventFlagsId_t ef_id, uint32_t flags, uint32_t options, uint32_t timeout)
+{
+    (void)ef_id;
+    (void)flags;
+    (void)options;
+    (void)timeout;
+    return 0U;
 }
 
 void osDelay(uint32_t ticks)

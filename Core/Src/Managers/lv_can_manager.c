@@ -21,14 +21,13 @@
 #include "lv_can_manager.h"
 
 /* Private variables ---------------------------------------------------------*/
+static osMessageQueueId_t LV_CAN_RxQueueHandle = NULL;
 static osMessageQueueId_t LV_CAN_TxQueueHandle = NULL;
 static CAN_Statistics_t lv_can_stats = {0};
 
 /* Private function prototypes -----------------------------------------------*/
-HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg);
-HAL_StatusTypeDef LV_CAN_ProcessRXMessage(CAN_Message_t *msg);
-static void _CONVERT_UCAN_TO_CAN_MESSAGE(uCAN_MSG *in, CAN_Message_t *out);
-static void _CONVERT_CAN_MESSAGE_TO_UCAN(CAN_Message_t *in, uCAN_MSG *out);
+HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg);
+HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg);
 
 /* Public variables ---------------------------------------------------------*/
 
@@ -41,9 +40,18 @@ uint8_t lv_can_initialized = 0;
 HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
     
     // Create message queues
+    LV_CAN_RxQueueHandle = osMessageQueueNew(
+        CAN_RX_QUEUE_SIZE,
+        sizeof(uCAN_MSG),
+        NULL
+    );
+    if (LV_CAN_RxQueueHandle == NULL) {
+        return HAL_ERROR;
+    }
+
     LV_CAN_TxQueueHandle = osMessageQueueNew(
         CAN_TX_QUEUE_SIZE,
-        sizeof(CAN_Message_t),
+        sizeof(uCAN_MSG),
         NULL
     );
     if (LV_CAN_TxQueueHandle == NULL) {
@@ -66,12 +74,15 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
   * @retval None
   */
 void LV_CAN_ManagerTask(void *argument){
-    CAN_Message_t can_message;
+    uCAN_MSG msg;
   
     for (;;) {
+        while (osMessageQueueGet(LV_CAN_RxQueueHandle, &msg, NULL, 0) == osOK) {
+            LV_CAN_ProcessRXMessage(&msg);
+        }
 
-        while (osMessageQueueGet(LV_CAN_TxQueueHandle, &can_message, NULL, 0) == osOK) {
-            LV_CAN_TransmitMessage(&can_message);
+        while (osMessageQueueGet(LV_CAN_TxQueueHandle, &msg, NULL, 0) == osOK) {
+            LV_CAN_TransmitMessage(&msg);
         }
 
         osDelay(1);
@@ -79,8 +90,6 @@ void LV_CAN_ManagerTask(void *argument){
     }
 }
 
-
-// TODO: move this into LV_CAN_ManagerTask
 /**
   * @brief  Send CAN message on LV bus (non-blocking, queues message)
   * @param  id: CAN message ID (29-bit extended, max 0x1FFFFFFF)
@@ -91,28 +100,34 @@ void LV_CAN_ManagerTask(void *argument){
   */
 HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
 {
-    CAN_Message_t msg;
+    uCAN_MSG msg;
     
     // Validate inputs
-    if ((data == NULL) ||
+    if (((data == NULL) && (length > 0)) ||
         (length > CAN_MAX_DLEN) ||
         (id > CAN_EFF_MASK) ||
         (priority > CAN_PRIORITY_LOW)) {
         return HAL_ERROR;
     }
+
+    #ifdef DEBUG
+    
+    BMS_CAN_SendMessage(id, data, length, priority);
+
+    #endif
     
     // Prepare message
-    msg.id = id;
-    msg.length = length;
-    msg.priority = priority;
-    msg.timestamp = osKernelGetTickCount();
-    
-    // Copy data
-    if (data != NULL && length > 0) {
-        for (int i = 0; i < length; i++) {
-            msg.data[i] = data[i];
-        }
-    }
+    msg.frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
+    msg.frame.id = id;
+    msg.frame.dlc = length;
+    msg.frame.data0 = (length > 0) ? data[0] : 0;
+    msg.frame.data1 = (length > 1) ? data[1] : 0;
+    msg.frame.data2 = (length > 2) ? data[2] : 0;
+    msg.frame.data3 = (length > 3) ? data[3] : 0;
+    msg.frame.data4 = (length > 4) ? data[4] : 0;
+    msg.frame.data5 = (length > 5) ? data[5] : 0;
+    msg.frame.data6 = (length > 6) ? data[6] : 0;
+    msg.frame.data7 = (length > 7) ? data[7] : 0;
     
     // Add to queue (non-blocking with timeout in ms)
     if (osMessageQueuePut(LV_CAN_TxQueueHandle, &msg, priority, CAN_TX_TIMEOUT_MS) != osOK) {
@@ -123,23 +138,20 @@ HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length,
     return HAL_OK;
 }
 
-HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg) {
-    uCAN_MSG rx_msg;
+HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg) {
     uint8_t retry_count = 0;
     uint8_t status = 0;
     
     // Check parameters
     if ((msg == NULL) ||
-        (msg->length > CAN_MAX_DLEN) ||
-        (msg->id > CAN_EFF_MASK)) {
+        (msg->frame.dlc > CAN_MAX_DLEN) ||
+        (msg->frame.id > CAN_EFF_MASK)) {
         return HAL_ERROR;
     }
 
-    _CONVERT_CAN_MESSAGE_TO_UCAN(msg, &rx_msg);
-
     // Retry a couple times before giving up
     while (retry_count < CAN_MAX_RETRIES) {
-        status = CANSPI_Transmit(&rx_msg);
+        status = CANSPI_Transmit(msg);
 
         if (status != 0) {
             lv_can_stats.tx_success_count++;
@@ -157,17 +169,17 @@ HAL_StatusTypeDef LV_CAN_TransmitMessage(CAN_Message_t *msg) {
     return HAL_ERROR;
 }
 
-HAL_StatusTypeDef LV_CAN_ProcessRXMessage(CAN_Message_t *msg) {
-    LV_Message_t decoded_msg;
-    
+HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg) {
     if (msg == NULL){
         return HAL_ERROR;
     }
 
+    lv_can_stats.rx_message_count++;
+
     for (int i = 0; i < LV_DispatchRegisterCount; i++) {
         // Decode returns true only when message is for it
-        if (LV_DispatchRegister[i].decode(msg, &decoded_msg)) {
-            LV_DispatchRegister[i].handle(&decoded_msg);
+        if (LV_DispatchRegister[i].decode(msg)) {
+            LV_DispatchRegister[i].handle(msg);
         }
     }
 
@@ -182,12 +194,12 @@ HAL_StatusTypeDef LV_CAN_ProcessRXMessage(CAN_Message_t *msg) {
 void SPI_IntCallbackTask(void *argument)
 {   
     uCAN_MSG rx_msg;
-    CAN_Message_t msg;
 
     // Clear out queue so the SPI interrupt gets cleared at start
     while (CANSPI_Receive(&rx_msg)) {
-        _CONVERT_UCAN_TO_CAN_MESSAGE(&rx_msg, &msg);
-        LV_CAN_ProcessRXMessage(&msg);
+        if (osMessageQueuePut(LV_CAN_RxQueueHandle, &rx_msg, 0, 0) != osOK) {
+            lv_can_stats.rx_queue_full_count++;
+        }
     }
 
     for (;;) {
@@ -200,43 +212,11 @@ void SPI_IntCallbackTask(void *argument)
         }
 
         while (CANSPI_Receive(&rx_msg)) {
-            _CONVERT_UCAN_TO_CAN_MESSAGE(&rx_msg, &msg);
-            LV_CAN_ProcessRXMessage(&msg);
+            if (osMessageQueuePut(LV_CAN_RxQueueHandle, &rx_msg, 0, 0) != osOK) {
+                lv_can_stats.rx_queue_full_count++;
+            }
         }
 
         osDelay(50);
     }
-}
-
-static void _CONVERT_CAN_MESSAGE_TO_UCAN(CAN_Message_t *in, uCAN_MSG *out) {
-        out->frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
-        out->frame.id = in->id;
-        out->frame.dlc = (in->length <= 8) ? in->length : 8;
-        out->frame.data0 = in->data[0];
-        out->frame.data1 = in->data[1];
-        out->frame.data2 = in->data[2];
-        out->frame.data3 = in->data[3];
-        out->frame.data4 = in->data[4];
-        out->frame.data5 = in->data[5];
-        out->frame.data6 = in->data[6];
-        out->frame.data7 = in->data[7];
-}
-
-static void _CONVERT_UCAN_TO_CAN_MESSAGE(uCAN_MSG *in, CAN_Message_t *out) {
-    if ((in == NULL) || (out == NULL)) {
-        return;
-    }
-
-    out->id = in->frame.id;
-    out->length = (in->frame.dlc <= CAN_MAX_DLEN) ? in->frame.dlc : CAN_MAX_DLEN;
-    out->data[0] = in->frame.data0;
-    out->data[1] = in->frame.data1;
-    out->data[2] = in->frame.data2;
-    out->data[3] = in->frame.data3;
-    out->data[4] = in->frame.data4;
-    out->data[5] = in->frame.data5;
-    out->data[6] = in->frame.data6;
-    out->data[7] = in->frame.data7;
-    out->priority = CAN_PRIORITY_NORMAL;
-    out->timestamp = osKernelGetTickCount();
 }

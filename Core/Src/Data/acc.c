@@ -39,6 +39,24 @@ void Acc_GetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t* last_update){
 }
 
 /**
+ * @brief Gets the error status for the ACC module.
+ *
+ * @param module Pointer to the ACC module instance.
+ * @param errored Output pointer for the error status.
+ */
+void Acc_GetErrorStatus(Acc_Module_t *module, bool* errored) {
+    if (module == NULL) {
+        return;
+    }
+
+    osMutexAcquire(module->mutex, osWaitForever);
+    if (errored != NULL) {
+        *errored = module->errored;
+    }
+    osMutexRelease(module->mutex);
+}
+
+/**
  * @brief Gets all cell voltages for the ACC module.
  *
  * @param module Pointer to the ACC module instance.

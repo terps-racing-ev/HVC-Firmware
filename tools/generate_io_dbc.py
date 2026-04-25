@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CAN_ID_HEADER = ROOT_DIR / "Core" / "Inc" / "Config" / "can_id.h"
 DEFAULT_STATE_HEADER = ROOT_DIR / "Core" / "Inc" / "Data" / "state.h"
-DEFAULT_OUTPUT = ROOT_DIR / "io_messages.dbc"
+DEFAULT_OUTPUT = ROOT_DIR / "hvc.dbc"
 
 CAN_ID_NAMES = (
     "CAN_ID_IO_SUMMARY",
@@ -27,6 +27,11 @@ CAN_ID_NAMES = (
     "CAN_ID_IO_VSENSE",
     "CAN_ID_CURRENT_LIMIT",
 )
+
+ERROR_SIGNAL_NAME_OVERRIDES = {
+    "BMS_ERR_CURR_SENSE_FLOATING": "Err_CurrSenseFloating",
+    "BMS_ERR_BMB_ERROR": "Err_BmbError",
+}
 
 
 def _parse_can_ids(header_path: Path) -> dict[str, int]:
@@ -128,6 +133,9 @@ def _dbc_frame_id(can_id: int) -> int:
 
 def _error_signal_name(error_name: str) -> str:
     """Convert enum name (BMS_ERR_*) to a compact DBC signal name."""
+    if error_name in ERROR_SIGNAL_NAME_OVERRIDES:
+        return ERROR_SIGNAL_NAME_OVERRIDES[error_name]
+
     base = error_name
     if base.startswith("BMS_ERR_"):
         base = base[len("BMS_ERR_"):]

@@ -53,6 +53,8 @@ BO_ 2151678449 BMS_State: 5 HVC
  SG_ Err_RefOverTemp : 8|1@1+ (1,0) [0|1] "" Vector__XXX
  SG_ Err_ModuleTimeout : 9|1@1+ (1,0) [0|1] "" Vector__XXX
  SG_ Err_BattFloating : 10|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ Err_CurrSenseFloating : 12|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ Err_BmbError : 16|1@1+ (1,0) [0|1] "" Vector__XXX
 
 BO_ 2151678450 Errored_Panic: 0 HVC
 
@@ -75,3 +77,5 @@ VAL_ 2151678449 BMS_State 0 "PRE_INIT" 1 "RUNNING" 2 "CHARGING" 3 "BALANCING" 4 
 VAL_ 2151678449 Err_RefOverTemp 0 "Inactive" 1 "Active" ;
 VAL_ 2151678449 Err_ModuleTimeout 0 "Inactive" 1 "Active" ;
 VAL_ 2151678449 Err_BattFloating 0 "Inactive" 1 "Active" ;
+VAL_ 2151678449 Err_CurrSenseFloating 0 "Inactive" 1 "Active" ;
+VAL_ 2151678449 Err_BmbError 0 "Inactive" 1 "Active" ;

@@ -24,7 +24,8 @@
 #include "stm32l4xx_hal.h"
 
 uint8_t io_initialized = 0;
-bool batt_floating = true; // When batt voltage is floating (<50V)
+static bool batt_floating = true;
+static bool curr_sense_floating = false;
 
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
@@ -33,6 +34,14 @@ static uint32_t _IO_CalculateVREF(void);
 static void _IO_LowPriority(void);
 static void _IO_HighPriority(void);
 static void _IO_HandleCompEvent(void);
+static void _IO_UpdateFloatingInputFlags(
+    uint16_t cs_low_raw_val,
+    bool cs_low_sample_valid,
+    uint16_t cs_high_raw_val,
+    bool cs_high_sample_valid,
+    uint32_t batt_voltage_mV,
+    bool batt_sample_valid
+);
 static void _IO_PackIOSummary(
     uint8_t *data, 
     uint8_t *length,
@@ -71,7 +80,7 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     }
 
     // Delay to fix random ADC offsets
-    for (int i = 0; i < 10000; i++) {};
+    for (int i = 0; i < 1000000; i++) {};
 
     // Start comparator
     if (HAL_COMP_Start(&hcomp2) != HAL_OK) {
@@ -139,18 +148,18 @@ static void _IO_HandleCompEvent(void)
     
     uint32_t comp_state = HAL_COMP_GetOutputLevel(&hcomp2);
     State bms_state; State_GetState(&bms_state);
-    uint32_t batt_volt = IO_GetVSense(&batt);
+    FloatingInputMask floating_inputs = 0U;
 
-    if (batt_floating && batt_volt >= IO_MAX_BATT_FLOATING_VOLTAGE_MV) {
-        batt_floating = false;
-    } else if (!batt_floating && batt_volt <= IO_MIN_BATT_FLOATING_VOLTAGE_MV) {
-        batt_floating = true;
+    if (floating_input_flag != NULL) {
+        floating_inputs = (FloatingInputMask)osEventFlagsGet(floating_input_flag);
     }
+
+    bool batt_input_floating = ((floating_inputs & BMS_FLOATING_INPUT_BATT) != 0U);
 
     // Conditions to check before allowing AIRTOP to close
     if (
         bms_state == ERRORED || 
-        batt_floating
+        batt_input_floating
     ) {
         HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
     } else if (bms_state == CHARGING) { // If charging ignore normal comp signal
@@ -243,6 +252,9 @@ static void _IO_HighPriority(void)
     uint32_t batt_voltage_filt;
     uint32_t inv_voltage_filt;
     bool fault;
+    bool batt_sample_valid = false;
+    bool cs_low_sample_valid = false;
+    bool cs_high_sample_valid = false;
 
     // Write BMS Fault (1 is good)
     fault = IO_GetDigitalIO(&bms_fault);
@@ -256,15 +268,18 @@ static void _IO_HighPriority(void)
     // cannot inject uninitialized stack values into filters.
     if (_IO_ReadADCChannel(ADC_CHANNEL_BATT, &batt_raw_val) == HAL_OK) {
         IO_SetAnalogIO(&batt_raw, batt_raw_val);
+        batt_sample_valid = true;
     }
     if (_IO_ReadADCChannel(ADC_CHANNEL_INV, &inv_raw_val) == HAL_OK) {
         IO_SetAnalogIO(&inv_raw, inv_raw_val);
     }
     if (_IO_ReadADCChannel(ADC_CHANNEL_CS_LC, &cs_low_raw_val) == HAL_OK) {
         IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
+        cs_low_sample_valid = true;
     }
     if (_IO_ReadADCChannel(ADC_CHANNEL_CS_HC, &cs_high_raw_val) == HAL_OK) {
         IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
+        cs_high_sample_valid = true;
     }
 
     // Calculate batt value
@@ -281,7 +296,21 @@ static void _IO_HighPriority(void)
     cs_high_filt_val = MovingAverage_Update(&cs_high.ma, cs_high_val);
     batt_voltage_filt = MovingAverage_Update(&batt.ma, batt_voltage);
     inv_voltage_filt = MovingAverage_Update(&inv.ma, inv_voltage);
-    
+
+    _IO_UpdateFloatingInputFlags(
+        cs_low_raw_val,
+        cs_low_sample_valid,
+        cs_high_raw_val,
+        cs_high_sample_valid,
+        batt_voltage_filt,
+        batt_sample_valid
+    );
+
+    if (curr_sense_floating) {
+        cs_low_filt_val = 0;
+        cs_high_filt_val = 0;
+    }
+
     // Set cs values
     IO_SetCurrent(&cs_low, cs_low_filt_val);
     IO_SetCurrent(&cs_high, cs_high_filt_val);
@@ -379,6 +408,49 @@ static uint32_t _IO_CalculateVREF(void)
 
     return vref_voltage;
 
+}
+
+static void _IO_UpdateFloatingInputFlags(
+    uint16_t cs_low_raw_val,
+    bool cs_low_sample_valid,
+    uint16_t cs_high_raw_val,
+    bool cs_high_sample_valid,
+    uint32_t batt_voltage_mV,
+    bool batt_sample_valid
+)
+{
+    if (batt_sample_valid) {
+        if (batt_floating && batt_voltage_mV >= IO_MAX_BATT_FLOATING_VOLTAGE_MV) {
+            batt_floating = false;
+        } else if (!batt_floating && batt_voltage_mV <= IO_MIN_BATT_FLOATING_VOLTAGE_MV) {
+            batt_floating = true;
+        }
+    }
+
+    if (cs_low_sample_valid && cs_high_sample_valid) {
+        bool cs_low_at_rail =
+            (cs_low_raw_val <= IO_MIN_CURR_FLOATING_ADC) ||
+            (cs_low_raw_val >= IO_MAX_CURR_FLOATING_ADC);
+        bool cs_high_at_rail =
+            (cs_high_raw_val <= IO_MIN_CURR_FLOATING_ADC) ||
+            (cs_high_raw_val >= IO_MAX_CURR_FLOATING_ADC);
+
+        curr_sense_floating = cs_low_at_rail || cs_high_at_rail;
+    }
+
+    if (floating_input_flag != NULL) {
+        if (batt_floating) {
+            (void)osEventFlagsSet(floating_input_flag, BMS_FLOATING_INPUT_BATT);
+        } else {
+            (void)osEventFlagsClear(floating_input_flag, BMS_FLOATING_INPUT_BATT);
+        }
+
+        if (curr_sense_floating) {
+            (void)osEventFlagsSet(floating_input_flag, BMS_FLOATING_INPUT_CURR_SENSE);
+        } else {
+            (void)osEventFlagsClear(floating_input_flag, BMS_FLOATING_INPUT_CURR_SENSE);
+        }
+    }
 }
 
 static void _IO_PackIOSummary(

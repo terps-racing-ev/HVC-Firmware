@@ -11,6 +11,7 @@
 /* Defines -------------------------------------------------------------------*/
 
 #define BMS_ECHO_MSGS 1
+#define DEBUG
 
 /* CAN Defaults */
 #define CAN_TX_QUEUE_SIZE 128        // Number of messages that can be queued

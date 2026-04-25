@@ -21,14 +21,12 @@
 
 /* Public variables ---------------------------------------------------------*/
 Locked_State bms_state = {0};
+osEventFlagsId_t floating_input_flag = NULL;
 
 /* Private functions ---------------------------------------------------------*/
 static void _State_PackCanMessage(State state, ErrorMask errors, uint8_t *data, uint8_t *length);
 static State _State_Transition(State curr_state, ErrorMask errors, bool charging_requested);
 static ErrorMask _State_CheckErrors(void);
-
-/* Private variables ---------------------------------------------------------*/
-bool floating = false;  // For no oscillations on floating check
 
 /**
   * @brief  Initialize State manager
@@ -36,6 +34,14 @@ bool floating = false;  // For no oscillations on floating check
   */
 HAL_StatusTypeDef State_Manager_Init(void) {
     if (State_InitState(&bms_state) != HAL_OK) return HAL_ERROR;
+
+    const osEventFlagsAttr_t floating_input_flag_attr = {
+        .name = "Floating_Input_Flag"
+    };
+    floating_input_flag = osEventFlagsNew(&floating_input_flag_attr);
+    if (floating_input_flag == NULL) {
+        return HAL_ERROR;
+    }
 
     const osEventFlagsAttr_t charge_flag_attr = {
         .name = "Charge_Flag"
@@ -160,6 +166,12 @@ static ErrorMask _State_CheckErrors(void) {
     ErrorMask errors = 0;
     uint32_t now  = osKernelGetTickCount();
     uint32_t last_heartbeat;
+    bool errored;
+    FloatingInputMask floating_inputs = 0U;
+
+    if (floating_input_flag != NULL) {
+        floating_inputs = (FloatingInputMask)osEventFlagsGet(floating_input_flag);
+    }
 
     if (CHECK_REF_OVERTEMP) {
         // Ref overtemp
@@ -179,24 +191,27 @@ static ErrorMask _State_CheckErrors(void) {
         }
     }
 
-    // TODO: cleaner method for this
-    if (CHECK_FLOATING_BATT) {
-        osMutexAcquire(batt.mutex, osWaitForever);
-        uint32_t last_updated = batt.last_updated;
-        osMutexRelease(batt.mutex);
-
-        if (last_updated) {
-            uint32_t voltage_mV = IO_GetVSense(&batt);
-            
-            if (!floating && voltage_mV < ACC_FLOATING_CUTOFF_VOLTAGE_MV - ACC_FLOATING_CUTOFF_HYSTERESIS_VOLTAGE_MV)
-                floating = true;
-            else if (floating && voltage_mV > ACC_FLOATING_CUTOFF_VOLTAGE_MV)
-                floating = false;
-
-            if (floating) SET_ERROR(errors, BMS_ERR_BATT_FLOATING);
+    if (CHECK_BATT_FLOATING) {
+        if ((floating_inputs & BMS_FLOATING_INPUT_BATT) != 0U) {
+            SET_ERROR(errors, BMS_ERR_BATT_FLOATING);
         }
     }
 
+    if (CHECK_CURR_SENSE_FLOATING) {
+        if ((floating_inputs & BMS_FLOATING_INPUT_CURR_SENSE) != 0U) {
+            SET_ERROR(errors, BMS_ERR_CURR_SENSE_FLOATING);
+        }
+    }
+
+    if (CHECK_BMB_ERRORS) {
+        for (int i = 0; i < NUM_ACC_MODULES; i++) {
+            Acc_GetErrorStatus(acc[i], &errored);
+            if (errored) {
+                SET_ERROR(errors, BMS_ERR_BMB_ERROR);
+            }
+        }
+    }
+    
     return errors;
 }
 
