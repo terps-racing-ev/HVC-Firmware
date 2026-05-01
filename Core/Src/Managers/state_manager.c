@@ -141,6 +141,8 @@ static State _State_Transition(State curr_state, ErrorMask errors, bool charging
             ) {
                 curr_state = ERRORED;
                 State_SetState(ERRORED);
+            } else {
+                cycles_since_charging_requested = 0;
             }
             break;
         case ERRORED:
