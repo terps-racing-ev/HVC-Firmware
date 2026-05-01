@@ -141,6 +141,8 @@ static State _State_Transition(State curr_state, ErrorMask errors, bool charging
             ) {
                 curr_state = ERRORED;
                 State_SetState(ERRORED);
+            } else if (!charging_requested) {
+                cycles_since_charging_requested++;
             } else {
                 cycles_since_charging_requested = 0;
             }
@@ -155,11 +157,6 @@ static State _State_Transition(State curr_state, ErrorMask errors, bool charging
         default:
             // Errored state
             break;
-    }
-
-    // NO OVERFLOW!
-    if (!charging_requested && cycles_since_charging_requested < 250) {
-        cycles_since_charging_requested++;
     }
     
     return curr_state;
