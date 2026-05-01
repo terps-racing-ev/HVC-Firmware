@@ -51,8 +51,6 @@ typedef struct {
 
 // Flag for comparator event
 #define IO_COMP_EVENT 1
-// Flag for comparator state switch (set in ISR)
-extern osEventFlagsId_t comp_flag;
 
 // Initializers, Setters and getters for IO/temps
 HAL_StatusTypeDef IO_InitDigitalIO(DigitalIO* dio, const char* mutex_name);

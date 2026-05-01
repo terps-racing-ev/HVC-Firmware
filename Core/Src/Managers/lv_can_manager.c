@@ -24,10 +24,18 @@
 static osMessageQueueId_t LV_CAN_RxQueueHandle = NULL;
 static osMessageQueueId_t LV_CAN_TxQueueHandle = NULL;
 static CAN_Statistics_t lv_can_stats = {0};
+static volatile uint8_t lv_can_bus_off_pending = 0;
+static volatile uint8_t lv_can_error_passive_pending = 0;
+static volatile uint32_t lv_can_last_error_tick = 0xFFFFFFFFU;
+static uint32_t lv_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_BASE_MS;
 
 /* Private function prototypes -----------------------------------------------*/
 HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg);
 HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg);
+static HAL_StatusTypeDef LV_CAN_QueueRXMessage(const uCAN_MSG *msg);
+static HAL_StatusTypeDef LV_CAN_RecoverBus(void);
+static void LV_CAN_HandleBusErrors(void);
+static void LV_CAN_MarkError(void);
 
 /* Public variables ---------------------------------------------------------*/
 
@@ -63,6 +71,10 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
     }
 
     CAN_ResetStatistics(&lv_can_stats);
+    lv_can_bus_off_pending = 0;
+    lv_can_error_passive_pending = 0;
+    lv_can_last_error_tick = 0xFFFFFFFFU;
+    lv_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_BASE_MS;
 
     lv_can_initialized = 1;
     return HAL_OK;
@@ -75,18 +87,28 @@ HAL_StatusTypeDef LV_CAN_Manager_Init(void) {
   */
 void LV_CAN_ManagerTask(void *argument){
     uCAN_MSG msg;
+    uint32_t rx_count;
+    uint32_t tx_count;
   
     for (;;) {
-        while (osMessageQueueGet(LV_CAN_RxQueueHandle, &msg, NULL, 0) == osOK) {
+        rx_count = 0;
+        tx_count = 0;
+
+        while ((rx_count < CAN_TASK_MAX_RX_PER_CYCLE) &&
+               (osMessageQueueGet(LV_CAN_RxQueueHandle, &msg, NULL, 0) == osOK)) {
             LV_CAN_ProcessRXMessage(&msg);
+            rx_count++;
         }
 
-        while (osMessageQueueGet(LV_CAN_TxQueueHandle, &msg, NULL, 0) == osOK) {
+        while ((tx_count < CAN_TASK_MAX_TX_PER_CYCLE) &&
+               (osMessageQueueGet(LV_CAN_TxQueueHandle, &msg, NULL, 0) == osOK)) {
             LV_CAN_TransmitMessage(&msg);
+            tx_count++;
         }
+
+        LV_CAN_HandleBusErrors();
 
         osDelay(1);
-        // TODO: handle bus errors (bus off, tx passive, rx passive)
     }
 }
 
@@ -132,10 +154,32 @@ HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length,
     // Add to queue (non-blocking with timeout in ms)
     if (osMessageQueuePut(LV_CAN_TxQueueHandle, &msg, priority, CAN_TX_TIMEOUT_MS) != osOK) {
         lv_can_stats.tx_queue_full_count++;
+        LV_CAN_MarkError();
         return HAL_ERROR;
     }
     
     return HAL_OK;
+}
+
+bool LV_CAN_HasError(void)
+{
+    uint32_t now;
+
+    if (lv_can_bus_off_pending || lv_can_error_passive_pending) {
+        return true;
+    }
+
+    if (lv_can_last_error_tick == 0xFFFFFFFFU) {
+        return false;
+    }
+
+    now = osKernelGetTickCount();
+    return ((now - lv_can_last_error_tick) <= CAN_ERROR_HOLD_TICKS);
+}
+
+static void LV_CAN_MarkError(void)
+{
+    lv_can_last_error_tick = osKernelGetTickCount();
 }
 
 HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg) {
@@ -146,6 +190,7 @@ HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg) {
     if ((msg == NULL) ||
         (msg->frame.dlc > CAN_MAX_DLEN) ||
         (msg->frame.id > CAN_EFF_MASK)) {
+        LV_CAN_MarkError();
         return HAL_ERROR;
     }
 
@@ -159,6 +204,19 @@ HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg) {
         }
 
         retry_count++;
+
+        if (CANSPI_isBussOff()) {
+            lv_can_stats.bus_off_count++;
+            lv_can_bus_off_pending = 1;
+            LV_CAN_MarkError();
+            break;
+        }
+
+        if (CANSPI_isTxErrorPassive()) {
+            lv_can_error_passive_pending = 1;
+            LV_CAN_MarkError();
+        }
+
         if (retry_count < CAN_MAX_RETRIES) {
             osDelay(1); // Wait a bit before retrying
         }
@@ -166,6 +224,7 @@ HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg) {
 
     // All retries failed
     lv_can_stats.tx_error_count++;
+    LV_CAN_MarkError();
     return HAL_ERROR;
 }
 
@@ -174,7 +233,12 @@ HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg) {
         return HAL_ERROR;
     }
 
-    lv_can_stats.rx_message_count++;
+    if ((msg->frame.idType != dEXTENDED_CAN_MSG_ID_2_0B) ||
+        (msg->frame.dlc > CAN_MAX_DLEN)) {
+        lv_can_stats.rx_invalid_count++;
+        LV_CAN_MarkError();
+        return HAL_ERROR;
+    }
 
     for (int i = 0; i < LV_DispatchRegisterCount; i++) {
         // Decode returns true only when message is for it
@@ -184,6 +248,76 @@ HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg) {
     }
 
     return HAL_OK;
+}
+
+static HAL_StatusTypeDef LV_CAN_QueueRXMessage(const uCAN_MSG *msg)
+{
+    if ((msg == NULL) ||
+        (LV_CAN_RxQueueHandle == NULL)) {
+        return HAL_ERROR;
+    }
+
+    if ((msg->frame.idType != dEXTENDED_CAN_MSG_ID_2_0B) ||
+        (msg->frame.dlc > CAN_MAX_DLEN)) {
+        lv_can_stats.rx_invalid_count++;
+        LV_CAN_MarkError();
+        return HAL_ERROR;
+    }
+
+    if (osMessageQueuePut(LV_CAN_RxQueueHandle, msg, 0, 0) != osOK) {
+        lv_can_stats.rx_queue_full_count++;
+        LV_CAN_MarkError();
+        return HAL_ERROR;
+    }
+
+    lv_can_stats.rx_message_count++;
+    return HAL_OK;
+}
+
+static HAL_StatusTypeDef LV_CAN_RecoverBus(void)
+{
+    if (lv_can_recovery_backoff_ms > 0) {
+        osDelay(lv_can_recovery_backoff_ms);
+    }
+
+    if (!CANSPI_Initialize()) {
+        LV_CAN_MarkError();
+        if (lv_can_recovery_backoff_ms < CAN_RECOVERY_BACKOFF_MAX_MS) {
+            lv_can_recovery_backoff_ms <<= 1;
+            if (lv_can_recovery_backoff_ms > CAN_RECOVERY_BACKOFF_MAX_MS) {
+                lv_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_MAX_MS;
+            }
+        }
+        return HAL_ERROR;
+    }
+
+    lv_can_bus_off_pending = 0;
+    lv_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_BASE_MS;
+    lv_can_stats.recovery_count++;
+    return HAL_OK;
+}
+
+static void LV_CAN_HandleBusErrors(void)
+{
+    if (CANSPI_isBussOff()) {
+        lv_can_stats.bus_off_count++;
+        lv_can_bus_off_pending = 1;
+        LV_CAN_MarkError();
+    }
+
+    if (CANSPI_isRxErrorPassive() || CANSPI_isTxErrorPassive()) {
+        lv_can_error_passive_pending = 1;
+        LV_CAN_MarkError();
+    }
+
+    if (lv_can_error_passive_pending) {
+        lv_can_stats.error_passive_count++;
+        lv_can_error_passive_pending = 0;
+    }
+
+    if (lv_can_bus_off_pending) {
+        LV_CAN_RecoverBus();
+    }
 }
 
 /**
@@ -197,24 +331,26 @@ void SPI_IntCallbackTask(void *argument)
 
     // Clear out queue so the SPI interrupt gets cleared at start
     while (CANSPI_Receive(&rx_msg)) {
-        if (osMessageQueuePut(LV_CAN_RxQueueHandle, &rx_msg, 0, 0) != osOK) {
-            lv_can_stats.rx_queue_full_count++;
-        }
+        LV_CAN_QueueRXMessage(&rx_msg);
     }
 
     for (;;) {
         osThreadFlagsWait(0x0001, osFlagsWaitAny, osWaitForever);
         osThreadFlagsClear(0x0001);
         
-        if (CANSPI_isRxErrorPassive()) {
-            // TODO: handle errors
-            // HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
+        if (CANSPI_isBussOff()) {
+            lv_can_stats.bus_off_count++;
+            lv_can_bus_off_pending = 1;
+            LV_CAN_MarkError();
+        }
+
+        if (CANSPI_isRxErrorPassive() || CANSPI_isTxErrorPassive()) {
+            lv_can_error_passive_pending = 1;
+            LV_CAN_MarkError();
         }
 
         while (CANSPI_Receive(&rx_msg)) {
-            if (osMessageQueuePut(LV_CAN_RxQueueHandle, &rx_msg, 0, 0) != osOK) {
-                lv_can_stats.rx_queue_full_count++;
-            }
+            LV_CAN_QueueRXMessage(&rx_msg);
         }
 
         osDelay(50);

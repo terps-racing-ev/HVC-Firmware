@@ -41,7 +41,8 @@ typedef struct {
 } LV_CanDispatchEntry;
 
 static const LV_CanDispatchEntry LV_DispatchRegister[] = {
-  {DecodeResetLV, HandleResetLV}
+  {DecodeResetLV, HandleResetLV},
+  {DecodeBMBPassthroughLV, HandleBMBPassthroughLV}
 };
 #define LV_DispatchRegisterCount (sizeof(LV_DispatchRegister)/sizeof(LV_CanDispatchEntry))
 

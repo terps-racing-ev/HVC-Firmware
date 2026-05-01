@@ -34,3 +34,7 @@ bool DecodeResetLV(const uCAN_MSG *in);
  * @retval bool
  */
 bool HandleResetLV(const uCAN_MSG *msg);
+
+bool DecodeBMBPassthroughLV(const uCAN_MSG *msg);
+
+bool HandleBMBPassthroughLV(const uCAN_MSG *msg);

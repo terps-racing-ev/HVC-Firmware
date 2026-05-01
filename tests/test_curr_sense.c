@@ -1,5 +1,6 @@
 #include "unity.h"
 #include "curr_sense.h"
+#include <stdlib.h>
 
 void setUp(void)
 {
@@ -69,11 +70,6 @@ void test_Curr_CalculateCurrentSenseLow_increases_with_adc_value_in_positive_reg
     TEST_ASSERT_TRUE(mid < high);
 }
 
-static int32_t abs_i32(int32_t value)
-{
-    return (value < 0) ? -value : value;
-}
-
 void test_Curr_CalculateCurrentSenseLow_absolute_value_is_less_than_high(void)
 {
     const uint32_t samples[] = {0U, 512U, 1024U, 1552U, 2048U, 3072U, 4095U};
@@ -83,7 +79,7 @@ void test_Curr_CalculateCurrentSenseLow_absolute_value_is_less_than_high(void)
     for (i = 0; i < count; ++i) {
         int32_t low = Curr_CalculateCurrentSenseLow(samples[i]);
         int32_t high = Curr_CalculateCurrentSenseHigh(samples[i]);
-        TEST_ASSERT_TRUE(abs_i32(low) < abs_i32(high));
+        TEST_ASSERT_TRUE(labs(low) < labs(high));
     }
 }
 
@@ -104,10 +100,10 @@ void test_Curr_CalculateCurrentSense_returns_about_zero_at_1p25V(void)
     TEST_ASSERT_TRUE(low_floor <= 0);
     TEST_ASSERT_TRUE(low_ceil >= 0);
 
-    TEST_ASSERT_TRUE(abs_i32(high_floor) <= high_tol);
-    TEST_ASSERT_TRUE(abs_i32(high_ceil) <= high_tol);
-    TEST_ASSERT_TRUE(abs_i32(low_floor) <= low_tol);
-    TEST_ASSERT_TRUE(abs_i32(low_ceil) <= low_tol);
+    TEST_ASSERT_TRUE(labs(high_floor) <= high_tol);
+    TEST_ASSERT_TRUE(labs(high_ceil) <= high_tol);
+    TEST_ASSERT_TRUE(labs(low_floor) <= low_tol);
+    TEST_ASSERT_TRUE(labs(low_ceil) <= low_tol);
 }
 
 int main(void)

@@ -64,14 +64,6 @@ static void _IO_PackVSenseMessage(
 );
 
 HAL_StatusTypeDef IO_Manager_Init(void){
-    const osEventFlagsAttr_t comp_flag_attr = {
-        .name = "Comp_Flag"
-    };
-
-    comp_flag = osEventFlagsNew(&comp_flag_attr);
-    if (comp_flag == NULL) {
-        return HAL_ERROR;
-    }
 
     // Calibrate ADC
     if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK)
@@ -124,11 +116,7 @@ void IO_ManagerTask(void *argument){
         _IO_HighPriority();
 
         // Handle comparator logic if triggered
-        uint32_t comp_events = osEventFlagsWait(comp_flag, IO_COMP_EVENT, osFlagsWaitAny, 0U);
-        if (((comp_events & osFlagsError) == 0U) && ((comp_events & IO_COMP_EVENT) != 0U)) {
-            osEventFlagsClear(comp_flag, IO_COMP_EVENT);
-            _IO_HandleCompEvent();
-        }
+        _IO_HandleCompEvent();
 
         if (regular_cycle_divider == 0U) {
             _IO_LowPriority();
@@ -143,12 +131,37 @@ void IO_ManagerTask(void *argument){
     }
 }
 
+typedef enum {
+    PL_SIGNAL_REASON_NORMAL_OPEN = 0,
+    PL_SIGNAL_REASON_NORMAL_CLOSED = 1,
+    PL_SIGNAL_REASON_BMS_ERRORED = 2,
+    PL_SIGNAL_REASON_BATT_FLOATING = 3,
+    PL_SIGNAL_REASON_CHARGING = 4
+} PL_Signal_Reason;
+
+#define COMP_DEBOUNCE_TICKS 5
+
 static void _IO_HandleCompEvent(void)
 {
+    static PL_Signal_Reason prev_reason = (PL_Signal_Reason)-1;
+    PL_Signal_Reason curr_reason;
+    static uint32_t debounced_comp_state = COMP_OUTPUT_LEVEL_LOW;
+    static uint8_t comp_debounce_counter = 0;
     
     uint32_t comp_state = HAL_COMP_GetOutputLevel(&hcomp2);
     State bms_state; State_GetState(&bms_state);
     FloatingInputMask floating_inputs = 0U;
+
+    // Debounce comparator output
+    if (comp_state != debounced_comp_state) {
+        comp_debounce_counter++;
+        if (comp_debounce_counter >= COMP_DEBOUNCE_TICKS) {
+            debounced_comp_state = comp_state;
+            comp_debounce_counter = 0;
+        }
+    } else {
+        comp_debounce_counter = 0;
+    }
 
     if (floating_input_flag != NULL) {
         floating_inputs = (FloatingInputMask)osEventFlagsGet(floating_input_flag);
@@ -157,21 +170,31 @@ static void _IO_HandleCompEvent(void)
     bool batt_input_floating = ((floating_inputs & BMS_FLOATING_INPUT_BATT) != 0U);
 
     // Conditions to check before allowing AIRTOP to close
-    if (
-        bms_state == ERRORED || 
-        batt_input_floating
-    ) {
+    if (bms_state == ERRORED) {
         HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+        curr_reason = PL_SIGNAL_REASON_BMS_ERRORED;
+    } else if (batt_input_floating) {
+        HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+        curr_reason = PL_SIGNAL_REASON_BATT_FLOATING;
     } else if (bms_state == CHARGING) { // If charging ignore normal comp signal
         HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_SET);
+        curr_reason = PL_SIGNAL_REASON_CHARGING;
     } else { // Normal operation
-        if (comp_state == COMP_OUTPUT_LEVEL_LOW) {
+        if (debounced_comp_state == COMP_OUTPUT_LEVEL_LOW) {
             HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+            curr_reason = PL_SIGNAL_REASON_NORMAL_OPEN;
         } else {
             HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_SET);
+            curr_reason = PL_SIGNAL_REASON_NORMAL_CLOSED;
         }
     }
 
+    if (curr_reason != prev_reason) {
+        uint8_t can_data[1] = { (uint8_t)curr_reason };
+        LV_CAN_SendMessage(CAN_ID_PL_SIGNAL, can_data, 1, CAN_PRIORITY_NORMAL);
+        
+        prev_reason = curr_reason;
+    }
 }
 
 static void _IO_LowPriority(void)
@@ -207,7 +230,7 @@ static void _IO_LowPriority(void)
         sdc_raw,
         imd_raw,
         temp,
-        IO_GetDigitalIO(&bms_fault)
+        !IO_GetDigitalIO(&bms_fault)
     );
     LV_CAN_SendMessage(
         CAN_ID_IO_SUMMARY,

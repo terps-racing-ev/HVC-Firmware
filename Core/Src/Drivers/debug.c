@@ -57,3 +57,30 @@ bool HandleResetLV(const uCAN_MSG *msg) {
   NVIC_SystemReset();
   return true;  // Never reached
 }
+
+bool DecodeBMBPassthroughLV(const uCAN_MSG *msg) {
+  uint8_t data[8];
+
+  if (msg->frame.id >= 0x08F00000u && msg->frame.id <= 0x08FFFFFFu) {
+    data[0] = msg->frame.data0;
+    data[1] = msg->frame.data1;
+    data[2] = msg->frame.data2;
+    data[3] = msg->frame.data3;
+    data[4] = msg->frame.data4;
+    data[5] = msg->frame.data5;
+    data[6] = msg->frame.data6;
+    data[7] = msg->frame.data7;
+
+    BMS_CAN_SendMessage(
+      msg->frame.id,
+      data,
+      msg->frame.dlc,
+      CAN_PRIORITY_NORMAL
+    );
+  }
+
+}
+
+bool HandleBMBPassthroughLV(const uCAN_MSG *msg) {
+  return true;
+}

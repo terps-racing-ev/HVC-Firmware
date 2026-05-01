@@ -10,131 +10,37 @@ void tearDown(void)
 {
 }
 
-void test_BMS_CAN_ProcessRXMessage_module0(void)
+void test_BMS_CAN_ProcessRXMessage_all_modules(void)
 {
-    CAN_Message_t msg = {0x08F00101, {0xC8, 0x01, 0xDE, 0x01, 0xC4, 0x01, 0xD5, 0x01}, 8, 2, 0x0};
+    // Test receiving a message for each module and verifying it only updates the intended module
+    for (uint8_t m = 0; m < 6; m++)
+    {
+        setUp(); // Reset state for each loop iteration
+        
+        // CAN ID embedded with module number (m)
+        uint32_t can_id = 0x08F00101 | (m << 12);
+        CAN_Message_t msg = {can_id, {0xC8, 0x01, 0xDE, 0x01, 0xC4, 0x01, 0xD5, 0x01}, 8, 2, 0x0};
 
-    Test_BMS_CAN_ProcessRXMessage(&msg);
+        Test_BMS_CAN_ProcessRXMessage(&msg);
 
-    TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(45.6, acc[0]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(47.8, acc[0]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
+        TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
+        
+        for (uint8_t i = 0; i < 6; i++)
+        {
+            if (i == m)
+            {
+                TEST_ASSERT_EQUAL_FLOAT(45.6, acc[i]->cell_temps.temp_min);
+                TEST_ASSERT_EQUAL_FLOAT(47.8, acc[i]->cell_temps.temp_max);
+            }
+            else
+            {
+                TEST_ASSERT_EQUAL_FLOAT(0.0f, acc[i]->cell_temps.temp_min);
+                TEST_ASSERT_EQUAL_FLOAT(0.0f, acc[i]->cell_temps.temp_max);
+            }
+        }
+    }
 }
 
-void test_BMS_CAN_ProcessRXMessage_module1(void)
-{
-    CAN_Message_t msg = {0x08F01101, {0xC8, 0x01, 0xDE, 0x01, 0xC4, 0x01, 0xD5, 0x01}, 8, 2, 0x0};
-
-    Test_BMS_CAN_ProcessRXMessage(&msg);
-
-    TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(45.6, acc[1]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(47.8, acc[1]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
-}
-
-void test_BMS_CAN_ProcessRXMessage_module2(void)
-{
-    CAN_Message_t msg = {0x08F02101, {0xC8, 0x01, 0xDE, 0x01, 0xC4, 0x01, 0xD5, 0x01}, 8, 2, 0x0};
-
-    Test_BMS_CAN_ProcessRXMessage(&msg);
-
-    TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(45.6, acc[2]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(47.8, acc[2]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
-}
-
-void test_BMS_CAN_ProcessRXMessage_module3(void)
-{
-    CAN_Message_t msg = {0x08F03101, {0xC8, 0x01, 0xDE, 0x01, 0xC4, 0x01, 0xD5, 0x01}, 8, 2, 0x0};
-
-    Test_BMS_CAN_ProcessRXMessage(&msg);
-
-    TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(45.6, acc[3]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(47.8, acc[3]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
-}
-
-void test_BMS_CAN_ProcessRXMessage_module4(void)
-{
-    CAN_Message_t msg = {0x08F04101, {0xC8, 0x01, 0xDE, 0x01, 0xC4, 0x01, 0xD5, 0x01}, 8, 2, 0x0};
-
-    Test_BMS_CAN_ProcessRXMessage(&msg);
-
-    TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(45.6, acc[4]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(47.8, acc[4]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[5]->cell_temps.temp_max);
-}
-
-void test_BMS_CAN_ProcessRXMessage_module5(void)
-{
-    CAN_Message_t msg = {0x08F05101, {0xC8, 0x01, 0xDE, 0x01, 0xC4, 0x01, 0xD5, 0x01}, 8, 2, 0x0};
-
-    Test_BMS_CAN_ProcessRXMessage(&msg);
-
-    TEST_ASSERT_EQUAL_UINT32(1, Test_GetDispatchRegisterMatchCount());
-    TEST_ASSERT_EQUAL_FLOAT(45.6, acc[5]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(47.8, acc[5]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[0]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[1]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[2]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[3]->cell_temps.temp_max);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_min);
-    TEST_ASSERT_EQUAL_FLOAT(0, acc[4]->cell_temps.temp_max);
-}
 
 void test_BMS_CAN_ProcessRXMessage_temp1(void)
 {
@@ -259,12 +165,7 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_BMS_CAN_ProcessRXMessage_module0);
-    RUN_TEST(test_BMS_CAN_ProcessRXMessage_module1);
-    RUN_TEST(test_BMS_CAN_ProcessRXMessage_module2);
-    RUN_TEST(test_BMS_CAN_ProcessRXMessage_module3);
-    RUN_TEST(test_BMS_CAN_ProcessRXMessage_module4);
-    RUN_TEST(test_BMS_CAN_ProcessRXMessage_module5);
+    RUN_TEST(test_BMS_CAN_ProcessRXMessage_all_modules);
     RUN_TEST(test_BMS_CAN_ProcessRXMessage_temp1);
     RUN_TEST(test_BMS_CAN_ProcessRXMessage_temp2);
     RUN_TEST(test_BMS_CAN_ProcessRXMessage_temp_error_value);

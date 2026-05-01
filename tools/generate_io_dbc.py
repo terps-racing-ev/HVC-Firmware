@@ -26,6 +26,7 @@ CAN_ID_NAMES = (
     "CAN_ID_ACC_SUMMARY",
     "CAN_ID_IO_VSENSE",
     "CAN_ID_CURRENT_LIMIT",
+    "CAN_ID_PL_SIGNAL",
 )
 
 ERROR_SIGNAL_NAME_OVERRIDES = {
@@ -38,7 +39,7 @@ def _parse_can_ids(header_path: Path) -> dict[str, int]:
     """Extract selected CAN ID #defines from the header file."""
     text = header_path.read_text(encoding="utf-8")
     pattern = re.compile(
-        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_STATE|CAN_ID_ERRORED_PANIC|CAN_ID_IO_CURRENT|CAN_ID_SOC|CAN_ID_ACC_SUMMARY|CAN_ID_IO_VSENSE|CAN_ID_CURRENT_LIMIT)\s+"
+        r"^\s*#define\s+(CAN_ID_IO_SUMMARY|CAN_ID_STATE|CAN_ID_ERRORED_PANIC|CAN_ID_IO_CURRENT|CAN_ID_SOC|CAN_ID_ACC_SUMMARY|CAN_ID_IO_VSENSE|CAN_ID_CURRENT_LIMIT|CAN_ID_PL_SIGNAL)\s+"
         r"(0x[0-9A-Fa-f]+|\d+)\b",
         re.MULTILINE,
     )
@@ -153,6 +154,7 @@ def _generate_dbc_text(
     acc_summary_id: int,
     io_vsense_id: int,
     current_limit_id: int,
+    pl_signal_id: int,
     error_bits: list[tuple[str, int]],
     include_raw_error_mask: bool,
     node_name: str,
@@ -166,6 +168,7 @@ def _generate_dbc_text(
     acc_summary_dbc_id = _dbc_frame_id(acc_summary_id)
     io_vsense_dbc_id = _dbc_frame_id(io_vsense_id)
     current_limit_dbc_id = _dbc_frame_id(current_limit_id)
+    pl_signal_dbc_id = _dbc_frame_id(pl_signal_id)
 
     error_signal_lines: list[str] = []
     error_value_lines: list[str] = []
@@ -259,7 +262,11 @@ BO_ {current_limit_dbc_id} Current_Limit: 8 {node_name}
  SG_ Negative_Current_Limit_mA : 0|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
  SG_ Positive_Current_Limit_mA : 32|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
 
+BO_ {pl_signal_dbc_id} PL_Signal: 1 {node_name}
+ SG_ PL_Signal_Reason : 0|8@1+ (1,0) [0|255] "" Vector__XXX
+
 VAL_ {state_dbc_id} BMS_State 0 "PRE_INIT" 1 "RUNNING" 2 "CHARGING" 3 "BALANCING" 4 "ERRORED" ;
+VAL_ {pl_signal_dbc_id} PL_Signal_Reason 0 "NORMAL_OPEN" 1 "NORMAL_CLOSED" 2 "BMS_ERRORED" 3 "BATT_FLOATING" 4 "CHARGING" ;
 {error_values_block}
 '''
 
@@ -316,6 +323,7 @@ def main() -> int:
         acc_summary_id=can_ids["CAN_ID_ACC_SUMMARY"],
         io_vsense_id=can_ids["CAN_ID_IO_VSENSE"],
         current_limit_id=can_ids["CAN_ID_CURRENT_LIMIT"],
+        pl_signal_id=can_ids["CAN_ID_PL_SIGNAL"],
         error_bits=error_bits,
         include_raw_error_mask=args.include_raw_error_mask,
         node_name=args.node_name,

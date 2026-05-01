@@ -14,6 +14,7 @@
 #define CAN_ID_IO_VSENSE        0x004001F7
 #define CAN_ID_CURRENT_LIMIT   0x004001F8
 #define CAN_ID_CHARGING_REQUEST 0x004001F9 // TODO: set real charging request CAN ID
+#define CAN_ID_PL_SIGNAL        0x004001FA // PL Signal Switch Reason
 
 
 

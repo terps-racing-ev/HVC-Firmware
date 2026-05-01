@@ -256,12 +256,6 @@ void COMP_IRQHandler(void)
 {
   /* USER CODE BEGIN COMP_IRQn 0 */
 
-  // Set a flag for IO manager
-  if (comp_flag != NULL) {
-    (void)osEventFlagsSet(comp_flag, IO_COMP_EVENT);
-  }
-
-
   /* USER CODE END COMP_IRQn 0 */
   HAL_COMP_IRQHandler(&hcomp2);
   /* USER CODE BEGIN COMP_IRQn 1 */

@@ -24,10 +24,18 @@
 static osMessageQueueId_t BMS_CAN_RxQueueHandle = NULL;
 static osMessageQueueId_t BMS_CAN_TxQueueHandle = NULL;
 static CAN_Statistics_t bms_can_stats = {0};
+static volatile uint8_t bms_can_bus_off_pending = 0;
+static volatile uint8_t bms_can_error_passive_pending = 0;
+static volatile uint32_t bms_can_last_error_tick = 0xFFFFFFFFU;
+static uint32_t bms_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_BASE_MS;
 
 /* Private function prototypes -----------------------------------------------*/
 static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg);
 static HAL_StatusTypeDef BMS_CAN_TransmitMessage(CAN_Message_t *msg);
+static HAL_StatusTypeDef BMS_CAN_QueueRXMessage(CAN_RxHeaderTypeDef *rx_header, uint8_t *data);
+static HAL_StatusTypeDef BMS_CAN_RecoverBus(void);
+static void BMS_CAN_HandleBusErrors(void);
+static void BMS_CAN_MarkError(void);
 // static void CAN_ConfigureFilters(void);
 
 /* Public variables ---------------------------------------------------------*/
@@ -65,6 +73,10 @@ HAL_StatusTypeDef BMS_CAN_Manager_Init(void)
     }
     // Reset statistics
     CAN_ResetStatistics(&bms_can_stats);
+    bms_can_bus_off_pending = 0;
+    bms_can_error_passive_pending = 0;
+    bms_can_last_error_tick = 0xFFFFFFFFU;
+    bms_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_BASE_MS;
     
     bms_can_initialized = 1;
     return HAL_OK;
@@ -78,21 +90,29 @@ HAL_StatusTypeDef BMS_CAN_Manager_Init(void)
 void BMS_CAN_ManagerTask(void *argument)
 {
     CAN_Message_t msg;
+    uint32_t rx_count;
+    uint32_t tx_count;
 
     for (;;) {
+        rx_count = 0;
+        tx_count = 0;
 
-        // TODO: limit on how many messages we process at a time?
         // Clear RX queue
-        while (osMessageQueueGet(BMS_CAN_RxQueueHandle, &msg, NULL, 0) == osOK) {
+        while ((rx_count < CAN_TASK_MAX_RX_PER_CYCLE) &&
+               (osMessageQueueGet(BMS_CAN_RxQueueHandle, &msg, NULL, 0) == osOK)) {
             BMS_CAN_ProcessRXMessage(&msg);
+            rx_count++;
         }
+
         // Clear TX queue
-        while (osMessageQueueGet(BMS_CAN_TxQueueHandle, &msg, NULL, 0) == osOK) {
+        while ((tx_count < CAN_TASK_MAX_TX_PER_CYCLE) &&
+               (osMessageQueueGet(BMS_CAN_TxQueueHandle, &msg, NULL, 0) == osOK)) {
             BMS_CAN_TransmitMessage(&msg);
+            tx_count++;
         }
-        
-        // TODO: Implement CAN bus error handling
-        osDelay(10);
+
+        BMS_CAN_HandleBusErrors();
+        osDelay(1);
     }
 }
 
@@ -109,7 +129,10 @@ HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length
     CAN_Message_t msg;
     
     // Validate inputs (29-bit extended ID max)
-    if (length > 8 || id > 0x1FFFFFFF || data == NULL) {
+    if (((data == NULL) && (length > 0)) ||
+        (length > 8) ||
+        (id > 0x1FFFFFFF) ||
+        (priority > CAN_PRIORITY_LOW)) {
         return HAL_ERROR;
     }
     
@@ -123,16 +146,44 @@ HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length
     // Add to queue (non-blocking with timeout in ms)
     if (osMessageQueuePut(BMS_CAN_TxQueueHandle, &msg, priority, CAN_TX_TIMEOUT_MS) != osOK) {
         bms_can_stats.tx_queue_full_count++;
+        BMS_CAN_MarkError();
         return HAL_ERROR;
     }
     
     return HAL_OK;
 }
 
+bool BMS_CAN_HasError(void)
+{
+    uint32_t now;
+
+    if (bms_can_bus_off_pending || bms_can_error_passive_pending) {
+        return true;
+    }
+
+    if (bms_can_last_error_tick == 0xFFFFFFFFU) {
+        return false;
+    }
+
+    now = osKernelGetTickCount();
+    return ((now - bms_can_last_error_tick) <= CAN_ERROR_HOLD_TICKS);
+}
+
+static void BMS_CAN_MarkError(void)
+{
+    bms_can_last_error_tick = osKernelGetTickCount();
+}
+
 static HAL_StatusTypeDef BMS_CAN_ProcessRXMessage(CAN_Message_t *msg) {
     BMS_Message_t decoded_msg;
     
     if (msg == NULL){
+        return HAL_ERROR;
+    }
+
+    if (msg->length > 8) {
+        bms_can_stats.rx_invalid_count++;
+        BMS_CAN_MarkError();
         return HAL_ERROR;
     }
 
@@ -166,6 +217,13 @@ static HAL_StatusTypeDef BMS_CAN_TransmitMessage(CAN_Message_t *msg)
         return HAL_ERROR;
     }
 
+    if ((msg->length > 8) ||
+        (msg->id > 0x1FFFFFFF)) {
+        bms_can_stats.tx_error_count++;
+        BMS_CAN_MarkError();
+        return HAL_ERROR;
+    }
+
     // Configure TX header for extended ID
     TxHeader.ExtId = msg->id;
     TxHeader.StdId = 0;
@@ -193,7 +251,91 @@ static HAL_StatusTypeDef BMS_CAN_TransmitMessage(CAN_Message_t *msg)
     
     // All retries failed
     bms_can_stats.tx_error_count++;
+    BMS_CAN_MarkError();
     return HAL_ERROR;
+}
+
+static HAL_StatusTypeDef BMS_CAN_QueueRXMessage(CAN_RxHeaderTypeDef *rx_header, uint8_t *data)
+{
+    CAN_Message_t msg;
+
+    if ((rx_header == NULL) ||
+        (data == NULL) ||
+        (BMS_CAN_RxQueueHandle == NULL)) {
+        return HAL_ERROR;
+    }
+
+    if ((rx_header->IDE != CAN_ID_EXT) ||
+        (rx_header->DLC > 8)) {
+        bms_can_stats.rx_invalid_count++;
+        BMS_CAN_MarkError();
+        return HAL_ERROR;
+    }
+
+    msg.id = rx_header->ExtId;
+    msg.length = rx_header->DLC;
+    msg.priority = 0;
+    msg.timestamp = osKernelGetTickCount();
+    memcpy(msg.data, data, msg.length);
+
+    if (osMessageQueuePut(BMS_CAN_RxQueueHandle, &msg, 0, 0) != osOK) {
+        bms_can_stats.rx_queue_full_count++;
+        BMS_CAN_MarkError();
+        return HAL_ERROR;
+    }
+
+    bms_can_stats.rx_message_count++;
+    return HAL_OK;
+}
+
+static HAL_StatusTypeDef BMS_CAN_RecoverBus(void)
+{
+    if (bms_can_recovery_backoff_ms > 0) {
+        osDelay(bms_can_recovery_backoff_ms);
+    }
+
+    if (HAL_CAN_Start(&hcan1) != HAL_OK) {
+        BMS_CAN_MarkError();
+        if (bms_can_recovery_backoff_ms < CAN_RECOVERY_BACKOFF_MAX_MS) {
+            bms_can_recovery_backoff_ms <<= 1;
+            if (bms_can_recovery_backoff_ms > CAN_RECOVERY_BACKOFF_MAX_MS) {
+                bms_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_MAX_MS;
+            }
+        }
+        return HAL_ERROR;
+    }
+
+    if (HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING |
+                                              CAN_IT_RX_FIFO1_MSG_PENDING |
+                                              CAN_IT_ERROR |
+                                              CAN_IT_BUSOFF) != HAL_OK) {
+        BMS_CAN_MarkError();
+        if (bms_can_recovery_backoff_ms < CAN_RECOVERY_BACKOFF_MAX_MS) {
+            bms_can_recovery_backoff_ms <<= 1;
+            if (bms_can_recovery_backoff_ms > CAN_RECOVERY_BACKOFF_MAX_MS) {
+                bms_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_MAX_MS;
+            }
+        }
+        return HAL_ERROR;
+    }
+
+    bms_can_bus_off_pending = 0;
+    bms_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_BASE_MS;
+    bms_can_stats.recovery_count++;
+    return HAL_OK;
+}
+
+static void BMS_CAN_HandleBusErrors(void)
+{
+    if (bms_can_error_passive_pending) {
+        bms_can_stats.error_passive_count++;
+        BMS_CAN_MarkError();
+        bms_can_error_passive_pending = 0;
+    }
+
+    if (bms_can_bus_off_pending) {
+        BMS_CAN_RecoverBus();
+    }
 }
 
 /* CAN Interrupt Callbacks ------------------------------------------------*/
@@ -207,20 +349,14 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
     CAN_RxHeaderTypeDef RxHeader;
     CAN_Message_t msg;
+
+    if ((hcan == NULL) || (hcan != &hcan1)) {
+        return;
+    }
     
     // Get message from FIFO
     if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, msg.data) == HAL_OK) {
-        // Store message details (all messages are extended ID)
-        msg.id = RxHeader.ExtId;
-        msg.length = RxHeader.DLC;
-        msg.priority = 0;  // RX messages don't have priority
-        msg.timestamp = osKernelGetTickCount();
-        
-        // TODO: implement message filtering
-        // Add to RX queue (from ISR context)
-        if (osMessageQueuePut(BMS_CAN_RxQueueHandle, &msg, 0, 0) != osOK) {
-            bms_can_stats.rx_queue_full_count++;
-        }
+        BMS_CAN_QueueRXMessage(&RxHeader, msg.data);
     }
 }
 
@@ -234,20 +370,36 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
     CAN_RxHeaderTypeDef RxHeader;
     CAN_Message_t msg;
 
+    if ((hcan == NULL) || (hcan != &hcan1)) {
+        return;
+    }
+
     // Get message from FIFO
     if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, msg.data) == HAL_OK) {
-        // Store message details (all messages are extended ID)
-        msg.id = RxHeader.ExtId;
-        msg.length = RxHeader.DLC;
-        msg.priority = 0;  // RX messages don't have priority
-        msg.timestamp = osKernelGetTickCount();
-        
-        // Add to RX queue (from ISR context)
-        if (osMessageQueuePut(BMS_CAN_RxQueueHandle, &msg, 0, 0) != osOK) {
-            bms_can_stats.rx_queue_full_count++;
-        }
+        BMS_CAN_QueueRXMessage(&RxHeader, msg.data);
 
     }
+}
+
+void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
+{
+    if ((hcan == NULL) || (hcan != &hcan1)) {
+        return;
+    }
+
+    bms_can_error_passive_pending = 1;
+    BMS_CAN_MarkError();
+}
+
+void HAL_CAN_BusOffCallback(CAN_HandleTypeDef *hcan)
+{
+    if ((hcan == NULL) || (hcan != &hcan1)) {
+        return;
+    }
+
+    bms_can_stats.bus_off_count++;
+    bms_can_bus_off_pending = 1;
+    BMS_CAN_MarkError();
 }
 
 

@@ -1,8 +1,6 @@
 #include "io.h"
 #include "cmsis_os.h"
 
-osEventFlagsId_t comp_flag = NULL;
-
 // IO structs
 DigitalIO sdc = {0};
 DigitalIO imd = {0};

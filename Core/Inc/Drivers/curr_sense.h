@@ -19,6 +19,8 @@
 
 // https://www.lem.com/sites/default/files/products_datasheets/dhab_s124_v5.pdf
 
+#define FLIP_CURRENT
+
 // TODO: implement offset based on what voltage is actually 0A on current sensor
 
 /**

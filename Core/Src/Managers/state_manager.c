@@ -74,7 +74,7 @@ void State_ManagerTask(void *argument) {
         // Handle charging logic if triggered
         uint32_t charge_events = osEventFlagsWait(charge_flag, CHARGING_EVENT, osFlagsWaitAny, 0U);
         if (((charge_events & osFlagsError) == 0U) && ((charge_events & CHARGING_EVENT) != 0U)) {
-            osEventFlagsClear(comp_flag, CHARGING_EVENT);
+            osEventFlagsClear(charge_flag, CHARGING_EVENT);
             charging_requested = true;
         }
 
@@ -129,6 +129,7 @@ static State _State_Transition(State curr_state, ErrorMask errors, bool charging
                 curr_state = ERRORED;
                 State_SetState(ERRORED);
             } else if (charging_requested) {
+                curr_state = CHARGING;
                 State_SetState(CHARGING);
                 cycles_since_charging_requested = 0;
             }
@@ -209,6 +210,18 @@ static ErrorMask _State_CheckErrors(void) {
             if (errored) {
                 SET_ERROR(errors, BMS_ERR_BMB_ERROR);
             }
+        }
+    }
+
+    if (CHECK_BMS_CAN_ERRORS) {
+        if (BMS_CAN_HasError()) {
+            SET_ERROR(errors, BMS_ERR_BMS_CAN_ERROR);
+        }
+    }
+
+    if (CHECK_LV_CAN_ERRORS) {
+        if (LV_CAN_HasError()) {
+            SET_ERROR(errors, BMS_ERR_LV_CAN_ERROR);
         }
     }
     

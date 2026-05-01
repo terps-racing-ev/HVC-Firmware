@@ -611,6 +611,16 @@ __attribute__((weak)) HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t
     return HAL_OK;
 }
 
+__attribute__((weak)) bool BMS_CAN_HasError(void)
+{
+    return false;
+}
+
+__attribute__((weak)) bool LV_CAN_HasError(void)
+{
+    return false;
+}
+
 __attribute__((weak)) void State_GetState(State *state)
 {
     if (state != NULL) {

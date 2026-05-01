@@ -1,82 +1,108 @@
 # HVC Firmware
 
-Firmware for the HVC board built on STM32L432 (HAL + FreeRTOS/CMSIS-RTOS v2).
-The project includes:
+Firmware for the High Voltage Controller (HVC) used in an FSAE electric vehicle. The target is an STM32L432 running STM32 HAL plus FreeRTOS/CMSIS-RTOS v2.
 
-- Core application startup and peripheral initialization
-- CAN manager infrastructure
-- MCP2515 SPI CAN controller driver
-- IO manager for digital and analog signal sampling
-- Host unit-test workflow (Unity + CMock)
+This repository is organized around a small set of hand-written subsystems:
+
+- `Managers` own timing, queues, event flags, and side effects.
+- `Data` owns shared runtime state behind getters/setters and mutexes.
+- `Drivers` convert raw hardware/protocol details into usable values.
+- `Config` holds CAN IDs, cell constants, and the generated OCV lookup table.
+
+The HVC talks to two CAN domains:
+
+- `BMS CAN` on the STM32's native `CAN1` peripheral for battery-module traffic.
+- `LV CAN` through an MCP2515 on `SPI1` for low-voltage vehicle-network traffic.
+
+For the full architecture walkthrough, see [docs/codebase-design.md](docs/codebase-design.md).
+
+## At A Glance
+
+- Safety-facing logic lives primarily in `state_manager` and `io_manager`.
+- Pack telemetry from six battery module boards flows through `bms_can_manager` into accumulator data structures.
+- SOC and current-limit estimation live in `acc_manager` and `soc`.
+- The firmware publishes state, IO, SOC, summary, voltage-sense, and current-limit messages over CAN.
+- The repository includes host-side unit tests and helper scripts for generated artifacts such as `hvc.dbc` and the OCV table.
 
 ## Repository Layout
 
-- `Core/Inc`, `Core/Src`: application code and module headers
-- `Drivers/`, `Middlewares/`: STM32 HAL, CMSIS, FreeRTOS sources
-- `Makefile`: firmware build (generated STM32 Make flow)
-- `tests/`, `tests.mk`: host unit tests
-- `Dockerfile.test`: containerized test runner
-- `openocd.cfg`: OpenOCD debug/flash configuration
+- `Core/Inc`, `Core/Src`: application code, split into `Config`, `Data`, `Drivers`, and `Managers`
+- `Drivers/`, `Middlewares/`: STM32 HAL, CMSIS, FreeRTOS, and vendor code
+- `docs/`: long-form project documentation and the local FSAE rules PDF
+- `tools/`: helper scripts for generating `hvc.dbc` and `Core/Src/config/ocv_lookup_table.c`
+- `tests/`, `tests.mk`, `Dockerfile.test`: host-side unit test workflow
+- `STM32Make.make`: current firmware build source of truth
+- `dual_build.mk`: dual-bank application build wrapper
+- `openocd.cfg`: OpenOCD target configuration
 
-## Firmware Architecture
+## Runtime Shape
 
-Current boot/runtime flow in `main.c`:
+`main.c` performs hardware init, creates RTOS primitives for each manager, and starts these application threads:
 
-1. HAL and clocks initialize
-2. Peripherals initialize (`CAN1`, `SPI1`, `ADC`, etc.)
-3. CAN peripheral starts (`HAL_CAN_Start`)
-4. RTOS objects initialize (mutexes, queues, tasks)
-5. Scheduler starts (`osKernelStart`)
+- `IO_Manager`: realtime sensor sampling, filtering, output pin updates
+- `BMS_CAN_Manager`: native CAN queueing, dispatch, and recovery
+- `LV_CAN_Manager`: MCP2515 TX/RX queueing and error handling
+- `SPI_IntCallback`: deferred LV-CAN interrupt drain task
+- `Acc_Manager`: accumulator summary, SOC, and current-limit publishing
+- `State_Manager`: top-level state machine and fault aggregation
+- `LED_Blink`: board heartbeat/debug task
 
-Main tasks currently created:
+## Build And Flash
 
-- `CAN_ManagerTask`
-- `SPICANIntCallbackTask`
-- `defaultTask`
+### Recommended firmware build paths
 
-## Build and Flash
-
-### Option A: VS Code tasks (recommended for day-to-day work)
-
-- Build: `Build STM`
-- Clean build: `Build Clean STM`
-- Flash: `Flash STM`
-
-### Option B: CLI build
-
-From repository root:
+- VS Code STM32 extension tasks:
+  - `Build STM`
+  - `Build Clean STM`
+  - `Flash STM`
+- Dual-bank wrapper:
 
 ```bash
-make
+make -f dual_build.mk
 ```
 
-This uses the generated firmware `Makefile` and requires an ARM GCC toolchain
-(`arm-none-eabi-*`) in your PATH.
+- Direct STM32Make flow:
 
-### Flashing via OpenOCD
+```bash
+make -f STM32Make.make
+```
 
-Use your existing OpenOCD setup with `openocd.cfg` for board programming.
+`STM32Make.make` reflects the current hand-written source layout. The root `Makefile` is an older generated file and should be treated as legacy unless it is regenerated to match the present tree.
 
-## Unit Tests
+### Flashing
 
-Unit tests are host-side and do not require flashing hardware.
+The repo ships with `openocd.cfg` for ST-Link plus STM32L4 targets. The STM32 VS Code extension can use that config directly, or you can invoke OpenOCD yourself.
 
-- Quick guide: `tests/README.md`
-- Build/run all on host: `make -f tests.mk test`
-- Build/run a single module: `make -f tests.mk test <module>`
+## Host Tests
 
-For containerized test execution, see `tests/README.md`.
+Host tests are intentionally separate from the firmware build:
 
-## CAN and MCP2515 Notes
+```bash
+make -f tests.mk test
+```
 
-- MCP2515 driver source is in `Core/Src/mcp2515.c`.
-- Active SPI handle in the current code is `hspi1`.
-- The project currently contains both `CANSPI.*` and `spi_can.*` naming patterns
-  in different areas; follow the naming used by the file you are editing.
+Run one module:
 
-## Naming and Portability Guidance
+```bash
+make -f tests.mk test state_manager
+```
 
-- Keep filename and include casing consistent (`CANSPI.h` vs `spi_can.h`).
-- On Linux/container builds, include path casing is strict.
-- For active firmware source membership, treat the generated `Makefile` as the
-  source-of-truth list of compiled C files.
+Containerized path:
+
+```bash
+docker build -f Dockerfile.test -t hvc-tests .
+docker run --rm -v ${PWD}:/work -w /work hvc-tests
+```
+
+More detail is in `tests/README.md` and `tests/testing_guide.md`.
+
+## Generated Artifacts And Tooling
+
+- `python tools/generate_io_dbc.py` regenerates `hvc.dbc` from `can_id.h` and `state.h`
+- `python tools/generate_ocv_table.py` regenerates the OCV lookup table from source CSV data
+- `requirements.txt` lists Python dependencies used by the tooling notebooks/scripts
+
+## Documentation
+
+- Architecture and subsystem guide: [docs/codebase-design.md](docs/codebase-design.md)
+- Local rules reference: `docs/FSAE_Rules_2026_V1.pdf`
