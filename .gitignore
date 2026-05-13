@@ -1,2 +1,4 @@
 build/
 .stm32env
+.vscode/*.json
+!.vscode/tasks.json

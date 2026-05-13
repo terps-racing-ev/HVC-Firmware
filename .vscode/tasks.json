@@ -19,6 +19,19 @@
       "problemMatcher": []
     },
     {
+      "label": "Build + Push A/B Binaries",
+      "type": "shell",
+      "command": "make -f dual_build.mk && scp build/bank_a/debug/HVC_a.bin build/bank_b/debug/HVC_b.bin ali@zfpi.local:/home/ali/hvcfirmware",
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Build STM",
       "type": "process",
       "command": "${command:stm32-for-vscode.build}",
