@@ -258,6 +258,19 @@ static void _IO_LowPriority(void)
         can_data_len,
         CAN_PRIORITY_NORMAL
     );
+
+    _IO_PackVSenseMessage(
+        can_data,
+        &can_data_len,
+        IO_GetVSense(&batt),
+        IO_GetVSense(&inv)
+    );
+    LV_CAN_SendMessage(
+        CAN_ID_IO_VSENSE,
+        can_data,
+        can_data_len,
+        CAN_PRIORITY_NORMAL
+    );
 }
 
 static void _IO_HighPriority(void)
@@ -325,7 +338,7 @@ static void _IO_HighPriority(void)
         cs_low_sample_valid,
         cs_high_raw_val,
         cs_high_sample_valid,
-        batt_voltage_filt,
+        batt_voltage,
         batt_sample_valid
     );
 
@@ -342,19 +355,6 @@ static void _IO_HighPriority(void)
 
     timestamp = osKernelGetTickCount();
     (void)Acc_CurrSenseQueue_Push(cs_low_filt_val, cs_high_filt_val, timestamp, 0U);
-
-    _IO_PackVSenseMessage(
-        vsense_summary,
-        &vsense_summary_len,
-        batt_voltage_filt,
-        inv_voltage_filt
-    );
-    LV_CAN_SendMessage(
-        CAN_ID_IO_VSENSE,
-        vsense_summary,
-        vsense_summary_len,
-        CAN_PRIORITY_NORMAL
-    );
 }
 
 /**
