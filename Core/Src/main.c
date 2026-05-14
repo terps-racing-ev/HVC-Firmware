@@ -178,6 +178,14 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
+  // When coming from bootloader, disable all interrupts first
+  __disable_irq();
+
+  // Disable SysTick (bootloader might have enabled it)
+  SysTick->CTRL = 0;
+  SysTick->LOAD = 0;
+  SysTick->VAL = 0;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -194,8 +202,7 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
-  // Updating vector table for application when using CAN bootloader
-  SCB->VTOR = 0x08008000U;  /* APPLICATION_ADDRESS */
+  // Vector table relocation is handled in SystemInit() using VECT_TAB_OFFSET.
   
   /* USER CODE END SysInit */
 
