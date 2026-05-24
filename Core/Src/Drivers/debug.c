@@ -77,8 +77,11 @@ bool DecodeBMBPassthroughLV(const uCAN_MSG *msg) {
       msg->frame.dlc,
       CAN_PRIORITY_NORMAL
     );
+
+    return true;
   }
 
+  return false;
 }
 
 bool HandleBMBPassthroughLV(const uCAN_MSG *msg) {

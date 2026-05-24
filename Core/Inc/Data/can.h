@@ -11,7 +11,7 @@
 
 /* Defines -------------------------------------------------------------------*/
 
-#define BMS_ECHO_MSGS 0
+#define BMS_ECHO_MSGS 1
 #define DEBUG
 
 /* CAN Defaults */

@@ -132,12 +132,6 @@ HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length,
         return HAL_ERROR;
     }
 
-    #ifdef DEBUG
-    
-    BMS_CAN_SendMessage(id, data, length, priority);
-
-    #endif
-    
     // Prepare message
     msg.frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
     msg.frame.id = id;
