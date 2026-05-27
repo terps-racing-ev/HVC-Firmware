@@ -19,9 +19,22 @@
       "problemMatcher": []
     },
     {
-      "label": "Build + Push A/B Binaries",
+      "label": "Build + Push A/B Binaries to ZFPI",
       "type": "shell",
       "command": "make -f dual_build.mk && scp build/bank_a/debug/HVC_a.bin build/bank_b/debug/HVC_b.bin ali@zfpi.local:/home/ali/hvcfirmware",
+      "options": {
+        "cwd": "${workspaceRoot}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build + Push A/B Binaries to TREVPI",
+      "type": "shell",
+      "command": "make -f dual_build.mk && scp build/bank_a/debug/HVC_a.bin build/bank_b/debug/HVC_b.bin trevor@trevpi.local:/home/trevor/firmware/HVC",
       "options": {
         "cwd": "${workspaceRoot}"
       },

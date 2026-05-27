@@ -18,6 +18,14 @@
 
 #include "debug.h"
 
+#define BMB_PASSTHROUGH_ID_PREFIX 0x08F00000u
+#define BMB_PASSTHROUGH_ID_MASK   0xFFF00000u
+
+static bool IsBMBPassthroughId(uint32_t id)
+{
+  return (id & BMB_PASSTHROUGH_ID_MASK) == BMB_PASSTHROUGH_ID_PREFIX;
+}
+
 /**
  * @brief Decodes reset message
  * @param in: Input pointer to received CAN message.
@@ -59,31 +67,33 @@ bool HandleResetLV(const uCAN_MSG *msg) {
 }
 
 bool DecodeBMBPassthroughLV(const uCAN_MSG *msg) {
-  uint8_t data[8];
-
-  if (msg->frame.id >= 0x08F00000u && msg->frame.id <= 0x08FFFFFFu) {
-    data[0] = msg->frame.data0;
-    data[1] = msg->frame.data1;
-    data[2] = msg->frame.data2;
-    data[3] = msg->frame.data3;
-    data[4] = msg->frame.data4;
-    data[5] = msg->frame.data5;
-    data[6] = msg->frame.data6;
-    data[7] = msg->frame.data7;
-
-    BMS_CAN_SendMessage(
-      msg->frame.id,
-      data,
-      msg->frame.dlc,
-      CAN_PRIORITY_NORMAL
-    );
-
-    return true;
+  if (msg == NULL) {
+    return false;
   }
 
-  return false;
+  return IsBMBPassthroughId(msg->frame.id);
 }
 
 bool HandleBMBPassthroughLV(const uCAN_MSG *msg) {
-  return true;
+  uint8_t data[8];
+
+  if ((msg == NULL) || !IsBMBPassthroughId(msg->frame.id)) {
+    return false;
+  }
+
+  data[0] = msg->frame.data0;
+  data[1] = msg->frame.data1;
+  data[2] = msg->frame.data2;
+  data[3] = msg->frame.data3;
+  data[4] = msg->frame.data4;
+  data[5] = msg->frame.data5;
+  data[6] = msg->frame.data6;
+  data[7] = msg->frame.data7;
+
+  return BMS_CAN_SendMessage(
+    msg->frame.id,
+    data,
+    msg->frame.dlc,
+    CAN_PRIORITY_NORMAL
+  ) == HAL_OK;
 }

@@ -94,6 +94,12 @@ void LV_CAN_ManagerTask(void *argument){
         rx_count = 0;
         tx_count = 0;
 
+         while ((rx_count < CAN_TASK_MAX_RX_PER_CYCLE) &&
+             CANSPI_Receive(&msg)) {
+             LV_CAN_ProcessRXMessage(&msg);
+             rx_count++;
+         }
+
         while ((rx_count < CAN_TASK_MAX_RX_PER_CYCLE) &&
                (osMessageQueueGet(LV_CAN_RxQueueHandle, &msg, NULL, 0) == osOK)) {
             LV_CAN_ProcessRXMessage(&msg);

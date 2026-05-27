@@ -231,8 +231,8 @@ uint8_t CANSPI_Receive(uCAN_MSG *tempCanMsg)
       MCP2515_ReadRxSequence(MCP2515_READ_RXB1SIDH, rxReg.rx_reg_array, sizeof(rxReg.rx_reg_array));
     }
     
-    /* if the message is extended CAN type */
-    if (rxStatus.msgType == dEXTENDED_CAN_MSG_ID_2_0B)
+    /* RXBnSIDL.EXIDE is the received-frame source of truth for extended IDs. */
+    if ((rxReg.RXBnSIDL & 0x08U) != 0U)
     {
       tempCanMsg->frame.idType = (uint8_t) dEXTENDED_CAN_MSG_ID_2_0B;
       tempCanMsg->frame.id = convertReg2ExtendedCANid(rxReg.RXBnEID8, rxReg.RXBnEID0, rxReg.RXBnSIDH, rxReg.RXBnSIDL);
