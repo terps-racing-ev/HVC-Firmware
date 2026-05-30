@@ -90,10 +90,11 @@ bool HandleBMBPassthroughLV(const uCAN_MSG *msg) {
   data[6] = msg->frame.data6;
   data[7] = msg->frame.data7;
 
-  return BMS_CAN_SendMessage(
+  return BMS_CAN_SendMessageWithTimeout(
     msg->frame.id,
     data,
     msg->frame.dlc,
-    CAN_PRIORITY_NORMAL
+    CAN_PRIORITY_CRITICAL,
+    0
   ) == HAL_OK;
 }

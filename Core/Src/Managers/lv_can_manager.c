@@ -32,7 +32,6 @@ static uint32_t lv_can_recovery_backoff_ms = CAN_RECOVERY_BACKOFF_BASE_MS;
 /* Private function prototypes -----------------------------------------------*/
 HAL_StatusTypeDef LV_CAN_TransmitMessage(uCAN_MSG *msg);
 HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg);
-static HAL_StatusTypeDef LV_CAN_QueueRXMessage(const uCAN_MSG *msg);
 static HAL_StatusTypeDef LV_CAN_RecoverBus(void);
 static void LV_CAN_HandleBusErrors(void);
 static void LV_CAN_MarkError(void);
@@ -89,16 +88,18 @@ void LV_CAN_ManagerTask(void *argument){
     uCAN_MSG msg;
     uint32_t rx_count;
     uint32_t tx_count;
+
+    (void)argument;
   
     for (;;) {
         rx_count = 0;
         tx_count = 0;
 
-         while ((rx_count < CAN_TASK_MAX_RX_PER_CYCLE) &&
-             CANSPI_Receive(&msg)) {
-             LV_CAN_ProcessRXMessage(&msg);
-             rx_count++;
-         }
+        while ((rx_count < CAN_TASK_MAX_RX_PER_CYCLE) &&
+               CANSPI_Receive(&msg)) {
+            LV_CAN_ProcessRXMessage(&msg);
+            rx_count++;
+        }
 
         while ((rx_count < CAN_TASK_MAX_RX_PER_CYCLE) &&
                (osMessageQueueGet(LV_CAN_RxQueueHandle, &msg, NULL, 0) == osOK)) {
@@ -240,6 +241,8 @@ HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg) {
         return HAL_ERROR;
     }
 
+    lv_can_stats.rx_message_count++;
+
     for (int i = 0; i < LV_DispatchRegisterCount; i++) {
         // Decode returns true only when message is for it
         if (LV_DispatchRegister[i].decode(msg)) {
@@ -247,30 +250,6 @@ HAL_StatusTypeDef LV_CAN_ProcessRXMessage(uCAN_MSG *msg) {
         }
     }
 
-    return HAL_OK;
-}
-
-static HAL_StatusTypeDef LV_CAN_QueueRXMessage(const uCAN_MSG *msg)
-{
-    if ((msg == NULL) ||
-        (LV_CAN_RxQueueHandle == NULL)) {
-        return HAL_ERROR;
-    }
-
-    if ((msg->frame.idType != dEXTENDED_CAN_MSG_ID_2_0B) ||
-        (msg->frame.dlc > CAN_MAX_DLEN)) {
-        lv_can_stats.rx_invalid_count++;
-        LV_CAN_MarkError();
-        return HAL_ERROR;
-    }
-
-    if (osMessageQueuePut(LV_CAN_RxQueueHandle, msg, 0, 0) != osOK) {
-        lv_can_stats.rx_queue_full_count++;
-        LV_CAN_MarkError();
-        return HAL_ERROR;
-    }
-
-    lv_can_stats.rx_message_count++;
     return HAL_OK;
 }
 
@@ -327,32 +306,9 @@ static void LV_CAN_HandleBusErrors(void)
   */
 void SPI_IntCallbackTask(void *argument)
 {   
-    uCAN_MSG rx_msg;
-
-    // Clear out queue so the SPI interrupt gets cleared at start
-    while (CANSPI_Receive(&rx_msg)) {
-        LV_CAN_QueueRXMessage(&rx_msg);
-    }
+    (void)argument;
 
     for (;;) {
         osThreadFlagsWait(0x0001, osFlagsWaitAny, osWaitForever);
-        osThreadFlagsClear(0x0001);
-        
-        if (CANSPI_isBussOff()) {
-            lv_can_stats.bus_off_count++;
-            lv_can_bus_off_pending = 1;
-            LV_CAN_MarkError();
-        }
-
-        if (CANSPI_isRxErrorPassive() || CANSPI_isTxErrorPassive()) {
-            lv_can_error_passive_pending = 1;
-            LV_CAN_MarkError();
-        }
-
-        while (CANSPI_Receive(&rx_msg)) {
-            LV_CAN_QueueRXMessage(&rx_msg);
-        }
-
-        osDelay(50);
     }
 }

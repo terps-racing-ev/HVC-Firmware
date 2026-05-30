@@ -78,7 +78,7 @@ const osThreadAttr_t LV_CANManagerTa_attributes = {
   .cb_size = sizeof(LV_CANManagerTaskControlBlock),
   .stack_mem = &LV_CANManagerTaskBuffer[0],
   .stack_size = sizeof(LV_CANManagerTaskBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* Definitions for BMS_CAN_Manager */
 osThreadId_t BMS_CAN_ManagerHandle;

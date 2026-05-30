@@ -126,6 +126,11 @@ void BMS_CAN_ManagerTask(void *argument)
   */
 HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
 {
+    return BMS_CAN_SendMessageWithTimeout(id, data, length, priority, CAN_TX_TIMEOUT_MS);
+}
+
+HAL_StatusTypeDef BMS_CAN_SendMessageWithTimeout(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority, uint32_t timeout_ms)
+{
     CAN_Message_t msg;
     
     // Validate inputs (29-bit extended ID max)
@@ -144,7 +149,7 @@ HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length
     memcpy(msg.data, data, length);
     
     // Add to queue (non-blocking with timeout in ms)
-    if (osMessageQueuePut(BMS_CAN_TxQueueHandle, &msg, priority, CAN_TX_TIMEOUT_MS) != osOK) {
+    if (osMessageQueuePut(BMS_CAN_TxQueueHandle, &msg, priority, timeout_ms) != osOK) {
         bms_can_stats.tx_queue_full_count++;
         BMS_CAN_MarkError();
         return HAL_ERROR;

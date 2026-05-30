@@ -191,7 +191,7 @@ static void _IO_HandleCompEvent(void)
 
     if (curr_reason != prev_reason) {
         uint8_t can_data[1] = { (uint8_t)curr_reason };
-        LV_CAN_SendMessage(CAN_ID_PL_SIGNAL, can_data, 1, CAN_PRIORITY_NORMAL);
+        HVC_CAN_SendMessage(CAN_ID_PL_SIGNAL, can_data, 1, CAN_PRIORITY_NORMAL);
         
         prev_reason = curr_reason;
     }
@@ -232,7 +232,7 @@ static void _IO_LowPriority(void)
         temp,
         !IO_GetDigitalIO(&bms_fault)
     );
-    LV_CAN_SendMessage(
+    HVC_CAN_SendMessage(
         CAN_ID_IO_SUMMARY,
         can_data,
         can_data_len,
@@ -246,13 +246,7 @@ static void _IO_LowPriority(void)
         IO_GetCurrent(&cs_low),
         IO_GetCurrent(&cs_high)
     );
-    LV_CAN_SendMessage(
-        CAN_ID_IO_CURRENT,
-        can_data,
-        can_data_len,
-        CAN_PRIORITY_NORMAL
-    );
-    BMS_CAN_SendMessage(
+    HVC_CAN_SendMessage(
         CAN_ID_IO_CURRENT,
         can_data,
         can_data_len,
@@ -265,7 +259,7 @@ static void _IO_LowPriority(void)
         IO_GetVSense(&batt),
         IO_GetVSense(&inv)
     );
-    LV_CAN_SendMessage(
+    HVC_CAN_SendMessage(
         CAN_ID_IO_VSENSE,
         can_data,
         can_data_len,

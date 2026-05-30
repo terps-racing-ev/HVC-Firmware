@@ -82,6 +82,27 @@ typedef union {
 HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority);
 
 /**
+  * @brief  Send HVC-originated CAN message on both buses
+  * @param  id: CAN message ID (29-bit extended, max 0x1FFFFFFF)
+  * @param  data: Pointer to data buffer (up to 8 bytes)
+  * @param  length: Data length (0-8 bytes)
+  * @param  priority: Message priority (0 = highest, 3 = lowest)
+  * @retval HAL_StatusTypeDef
+  */
+HAL_StatusTypeDef HVC_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority);
+
+/**
+  * @brief  Send CAN message on BMS bus with a caller-specified enqueue timeout
+  * @param  id: CAN message ID (29-bit extended, max 0x1FFFFFFF)
+  * @param  data: Pointer to data buffer (up to 8 bytes)
+  * @param  length: Data length (0-8 bytes)
+  * @param  priority: Message priority (0 = highest, 3 = lowest)
+  * @param  timeout_ms: Timeout for queue insertion in RTOS ticks/ms
+  * @retval HAL_StatusTypeDef
+  */
+HAL_StatusTypeDef BMS_CAN_SendMessageWithTimeout(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority, uint32_t timeout_ms);
+
+/**
   * @brief  Send CAN message (non-blocking, queues message)
   * @param  id: CAN message ID (29-bit extended, max 0x1FFFFFFF)
   * @param  data: Pointer to data buffer (up to 8 bytes)

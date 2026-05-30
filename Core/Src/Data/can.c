@@ -1,6 +1,21 @@
 
 #include "can.h"
 
+HAL_StatusTypeDef HVC_CAN_SendMessage(uint32_t id, uint8_t *data, uint8_t length, uint8_t priority)
+{
+  HAL_StatusTypeDef bms_status;
+  HAL_StatusTypeDef lv_status;
+
+  bms_status = BMS_CAN_SendMessage(id, data, length, priority);
+  lv_status = LV_CAN_SendMessage(id, data, length, priority);
+
+  if ((bms_status != HAL_OK) || (lv_status != HAL_OK)) {
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}
+
 /**
   * @brief  Reset CAN statistics (by zeroing out)
   * @param  stats: Can statistics struct

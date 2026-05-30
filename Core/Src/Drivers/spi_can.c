@@ -213,8 +213,14 @@ uint8_t CANSPI_Transmit(uCAN_MSG *tempCanMsg)
 uint8_t CANSPI_Receive(uCAN_MSG *tempCanMsg) 
 {
   uint8_t returnValue = 0;
+  uint8_t rxInterruptFlag = 0;
   rx_reg_t rxReg;
   ctrl_rx_status_t rxStatus;
+
+  if (tempCanMsg == NULL)
+  {
+    return 0;
+  }
   
   rxStatus.ctrl_rx_status = MCP2515_GetRxStatus();
   
@@ -222,13 +228,19 @@ uint8_t CANSPI_Receive(uCAN_MSG *tempCanMsg)
   if (rxStatus.rxBuffer != 0)
   {
     /* finding buffer which has a message */
-    if ((rxStatus.rxBuffer == MSG_IN_RXB0)|(rxStatus.rxBuffer == MSG_IN_BOTH_BUFFERS))
+    if ((rxStatus.rxBuffer == MSG_IN_RXB0) || (rxStatus.rxBuffer == MSG_IN_BOTH_BUFFERS))
     {
       MCP2515_ReadRxSequence(MCP2515_READ_RXB0SIDH, rxReg.rx_reg_array, sizeof(rxReg.rx_reg_array));
+      rxInterruptFlag = 0x01;
     }
     else if (rxStatus.rxBuffer == MSG_IN_RXB1)
     {
       MCP2515_ReadRxSequence(MCP2515_READ_RXB1SIDH, rxReg.rx_reg_array, sizeof(rxReg.rx_reg_array));
+      rxInterruptFlag = 0x02;
+    }
+    else
+    {
+      return 0;
     }
     
     /* RXBnSIDL.EXIDE is the received-frame source of truth for extended IDs. */
@@ -244,7 +256,7 @@ uint8_t CANSPI_Receive(uCAN_MSG *tempCanMsg)
       tempCanMsg->frame.id = convertReg2StandardCANid(rxReg.RXBnSIDH, rxReg.RXBnSIDL);
     }
     
-    tempCanMsg->frame.dlc   = rxReg.RXBnDLC;
+    tempCanMsg->frame.dlc   = rxReg.RXBnDLC & 0x0FU;
     tempCanMsg->frame.data0 = rxReg.RXBnD0;
     tempCanMsg->frame.data1 = rxReg.RXBnD1;
     tempCanMsg->frame.data2 = rxReg.RXBnD2;
@@ -253,6 +265,8 @@ uint8_t CANSPI_Receive(uCAN_MSG *tempCanMsg)
     tempCanMsg->frame.data5 = rxReg.RXBnD5;
     tempCanMsg->frame.data6 = rxReg.RXBnD6;
     tempCanMsg->frame.data7 = rxReg.RXBnD7;
+
+    MCP2515_BitModify(MCP2515_CANINTF, rxInterruptFlag, 0x00);
     
     returnValue = 1;
   }

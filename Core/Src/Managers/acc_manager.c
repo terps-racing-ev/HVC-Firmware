@@ -105,13 +105,7 @@ void Acc_ManagerTask(void *argument)
         curr_limit_input.ocv_voltage_mV = SOC_GetOcvFromSoc(soc_snapshot.soc_pctx100);
         CurrLimit_Calculate(&curr_limit_input, &curr_limit_output);
         _Acc_PackCurrentLimitMessage(can_data, &can_len, &curr_limit_output);
-        (void)BMS_CAN_SendMessage(
-          CAN_ID_CURRENT_LIMIT,
-          can_data,
-          can_len,
-          CAN_PRIORITY_NORMAL
-        );
-        (void)LV_CAN_SendMessage(
+        (void)HVC_CAN_SendMessage(
           CAN_ID_CURRENT_LIMIT,
           can_data,
           can_len,
@@ -120,7 +114,7 @@ void Acc_ManagerTask(void *argument)
       }
 
       _Acc_PackSocMessage(can_data, &can_len, &soc_snapshot);
-      (void)LV_CAN_SendMessage(
+      (void)HVC_CAN_SendMessage(
         CAN_ID_SOC,
         can_data,
         can_len,
@@ -129,7 +123,7 @@ void Acc_ManagerTask(void *argument)
 
 
       _Acc_PackSummaryMessage(can_data, &can_len, &summary);
-      (void)LV_CAN_SendMessage(
+      (void)HVC_CAN_SendMessage(
         CAN_ID_ACC_SUMMARY,
         can_data,
         can_len,

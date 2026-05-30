@@ -87,13 +87,7 @@ void State_ManagerTask(void *argument) {
         }
 
         _State_PackCanMessage(curr_state, errors, data, &length);
-        BMS_CAN_SendMessage(
-            CAN_ID_STATE,
-            data,
-            length,
-            CAN_PRIORITY_CRITICAL
-        );
-        LV_CAN_SendMessage(
+        HVC_CAN_SendMessage(
             CAN_ID_STATE,
             data,
             length,
