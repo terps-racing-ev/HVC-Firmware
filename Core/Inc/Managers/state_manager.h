@@ -27,6 +27,14 @@
 
 #define MODULE_TIMEOUT_CUTOFF_TICKS 2000
 
+// A module reports faults via its heartbeat Fault_Count signal. To avoid
+// tripping on transient blips, a module must report Fault_Count > 0
+// continuously for at least this long (ms) before a BMB fault is latched.
+#define BMB_FAULT_GRACE_PERIOD_MS 5000
+
+// Sentinel reported in the state message when no module is latching a BMB fault.
+#define BMB_FAULT_NO_MODULE 0xFFU
+
 #define CHECK_MODULE_TIMEOUT 0
 #define CHECK_REF_OVERTEMP 1
 #define CHECK_BATT_FLOATING 1

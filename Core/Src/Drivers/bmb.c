@@ -97,10 +97,15 @@ bool DecodeBMSHeartbeat(const CAN_Message_t *in, BMS_Message_t *out){
     if (cmd != BMB_CAN_BMS_HEARTBEAT) return false;
 
     out->module = MODULE_ID(in->id);
-   
+
+    // Heartbeat byte layout (little-endian):
+    //   [0]    BMS_State (module state machine; see Bmb_State_t)
+    //   [1..4] Error_Flags_Byte0..3
+    //   [5]    Warning_Summary
+    //   [6..7] Fault_Count (uint16)
     out->heartbeat.heartbeat_timestamp = in->timestamp;
-    // 5th byte = 0xFF if any errors
-    out->heartbeat.errored = (bool)(in->data[5]);
+    out->heartbeat.bms_state = in->data[0];
+    out->heartbeat.fault_count = (uint16_t)in->data[6] | ((uint16_t)in->data[7] << 8);
 
     return true;
 }

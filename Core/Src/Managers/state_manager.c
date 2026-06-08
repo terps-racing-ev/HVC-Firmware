@@ -23,6 +23,16 @@
 Locked_State bms_state = {0};
 osEventFlagsId_t floating_input_flag = NULL;
 
+/* Private variables --------------------------------------------------------*/
+/* BMB reporting fields, refreshed every cycle by _State_CheckErrors and sent in
+   the state CAN message. bmb_fault_module is the index of the module that
+   latched a fault (BMB_FAULT_NO_MODULE when none). bmb_reported_state is the
+   aggregate live module state, constrained to IDLE / BALANCING / FAULT
+   (priority FAULT > BALANCING > IDLE). Only touched from the State_Manager
+   task, so no locking is required. */
+static uint8_t bmb_fault_module = BMB_FAULT_NO_MODULE;
+static uint8_t bmb_reported_state = (uint8_t)BMB_STATE_IDLE;
+
 /* Private functions ---------------------------------------------------------*/
 static void _State_PackCanMessage(State state, ErrorMask errors, uint8_t *data, uint8_t *length);
 static State _State_Transition(State curr_state, ErrorMask errors, bool charging_requested);
@@ -160,8 +170,11 @@ static ErrorMask _State_CheckErrors(void) {
     ErrorMask errors = 0;
     uint32_t now  = osKernelGetTickCount();
     uint32_t last_heartbeat;
-    bool errored;
     FloatingInputMask floating_inputs = 0U;
+
+    // Reset BMB reporting; re-derived below from live module states / faults.
+    bmb_fault_module = BMB_FAULT_NO_MODULE;
+    bmb_reported_state = (uint8_t)BMB_STATE_IDLE;
 
     if (floating_input_flag != NULL) {
         floating_inputs = (FloatingInputMask)osEventFlagsGet(floating_input_flag);
@@ -198,12 +211,52 @@ static ErrorMask _State_CheckErrors(void) {
     }
 
     if (CHECK_BMB_ERRORS) {
+        // Each module runs its own state machine and reports a Fault_Count in
+        // its heartbeat. A non-zero Fault_Count means that module is faulting;
+        // require it to stay > 0 for BMB_FAULT_GRACE_PERIOD_MS before latching a
+        // BMS fault and recording which module tripped it.
+        //
+        // Separately, aggregate the live module BMS_State into a single reported
+        // value constrained to IDLE / BALANCING / FAULT (priority
+        // FAULT > BALANCING > IDLE). Any other/transient module state (e.g. INIT
+        // at startup) is reported as IDLE.
+        static bool fault_pending[NUM_ACC_MODULES] = {0};
+        static uint32_t fault_since[NUM_ACC_MODULES] = {0};
+        uint16_t fault_count;
+        uint8_t module_state;
+        uint8_t reported_state = (uint8_t)BMB_STATE_IDLE;
+
         for (int i = 0; i < NUM_ACC_MODULES; i++) {
-            Acc_GetErrorStatus(acc[i], &errored);
-            if (errored) {
-                SET_ERROR(errors, BMS_ERR_BMB_ERROR);
+            Acc_GetHeartbeatStatus(acc[i], &fault_count, &module_state);
+
+            if (fault_count > 0U) {
+                if (!fault_pending[i]) {
+                    fault_pending[i] = true;
+                    fault_since[i] = now;
+                }
+
+                if ((now - fault_since[i]) >= BMB_FAULT_GRACE_PERIOD_MS) {
+                    SET_ERROR(errors, BMS_ERR_BMB_ERROR);
+                    // Record the first (lowest-index) module that tripped.
+                    if (bmb_fault_module == BMB_FAULT_NO_MODULE) {
+                        bmb_fault_module = (uint8_t)i;
+                    }
+                    reported_state = (uint8_t)BMB_STATE_FAULT;
+                }
+            } else {
+                fault_pending[i] = false;
+            }
+
+            // Fold this module's live state into the reported aggregate.
+            if (module_state == (uint8_t)BMB_STATE_FAULT) {
+                reported_state = (uint8_t)BMB_STATE_FAULT;
+            } else if ((module_state == (uint8_t)BMB_STATE_BALANCING) &&
+                       (reported_state != (uint8_t)BMB_STATE_FAULT)) {
+                reported_state = (uint8_t)BMB_STATE_BALANCING;
             }
         }
+
+        bmb_reported_state = reported_state;
     }
 
     if (CHECK_BMS_CAN_ERRORS) {
@@ -232,9 +285,12 @@ static void _State_PackCanMessage(State state, ErrorMask errors, uint8_t *data, 
     data[2] = (uint8_t)((errors >> 8U) & 0xFFU);
     data[3] = (uint8_t)((errors >> 16U) & 0xFFU);
     data[4] = (uint8_t)((errors >> 24U) & 0xFFU);
-    data[5] = 0U;
-    data[6] = 0U;
+    // data[5]: index of the module that latched a BMB fault, or
+    //          BMB_FAULT_NO_MODULE (0xFF) when none.
+    // data[6]: aggregate live BMB state (IDLE / BALANCING / FAULT).
+    data[5] = bmb_fault_module;
+    data[6] = bmb_reported_state;
     data[7] = 0U;
 
-    *length = 5U;
+    *length = 7U;
 }

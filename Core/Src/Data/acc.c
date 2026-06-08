@@ -39,19 +39,23 @@ void Acc_GetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t* last_update){
 }
 
 /**
- * @brief Gets the error status for the ACC module.
+ * @brief Gets the latest heartbeat fault status for the ACC module.
  *
  * @param module Pointer to the ACC module instance.
- * @param errored Output pointer for the error status.
+ * @param fault_count Output pointer for the module's fault counter (may be NULL).
+ * @param bms_state Output pointer for the module's state-machine state (may be NULL).
  */
-void Acc_GetErrorStatus(Acc_Module_t *module, bool* errored) {
+void Acc_GetHeartbeatStatus(Acc_Module_t *module, uint16_t *fault_count, uint8_t *bms_state) {
     if (module == NULL) {
         return;
     }
 
     osMutexAcquire(module->mutex, osWaitForever);
-    if (errored != NULL) {
-        *errored = module->errored;
+    if (fault_count != NULL) {
+        *fault_count = module->fault_count;
+    }
+    if (bms_state != NULL) {
+        *bms_state = module->bms_state;
     }
     osMutexRelease(module->mutex);
 }
@@ -113,10 +117,10 @@ void Acc_GetAmbientTemps(Acc_Module_t *module, AmbientTemps_t *amb_temps){
 }
 
 /**
- * @brief Sets the last heartbeat timestamp for the ACC module.
+ * @brief Sets the latest heartbeat data for the ACC module.
  *
  * @param module Pointer to the ACC module instance.
- * @param heartbeat Message with heartbeat timestamp and error status
+ * @param heartbeat Message with heartbeat timestamp, module state and fault counter
  */
 void Acc_SetHeartbeat(Acc_Module_t *module, const HeartbeatMessage_t *heartbeat){
     if (module == NULL) {
@@ -126,7 +130,8 @@ void Acc_SetHeartbeat(Acc_Module_t *module, const HeartbeatMessage_t *heartbeat)
     osMutexAcquire(module->mutex, osWaitForever);
     if (heartbeat != NULL) {
         module->heartbeat_last_update = heartbeat->heartbeat_timestamp;
-        module->errored = heartbeat->errored;
+        module->bms_state = heartbeat->bms_state;
+        module->fault_count = heartbeat->fault_count;
     }
     osMutexRelease(module->mutex);
 }

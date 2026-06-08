@@ -26,15 +26,30 @@ typedef struct {
     int16_t amb_temp_2_Cx10;
 } AmbientTemps_t;
 
+/* Per-module BMS state-machine states, as reported in the BMS_Heartbeat
+   message (matches the BMS_State value table in the BMS firmware DBC).
+   Used as the "reason" reported alongside a BMB fault. */
+typedef enum {
+    BMB_STATE_INIT = 0,
+    BMB_STATE_IDLE = 1,
+    BMB_STATE_CHARGING = 2,
+    BMB_STATE_DISCHARGING = 3,
+    BMB_STATE_BALANCING = 4,
+    BMB_STATE_FAULT = 5,
+    BMB_STATE_RESERVED = 6
+} Bmb_State_t;
+
 typedef struct {
     uint32_t heartbeat_timestamp;
-    bool errored;
+    uint8_t bms_state;      // Module state-machine state (see Bmb_State_t)
+    uint16_t fault_count;   // Module fault counter; > 0 means the module is reporting faults
 } HeartbeatMessage_t;
 
 typedef struct {
     osMutexId_t mutex;
     uint32_t heartbeat_last_update;
-    bool errored;
+    uint8_t bms_state;      // Latest module state-machine state (see Bmb_State_t)
+    uint16_t fault_count;   // Latest module fault counter from its heartbeat
     CellVoltages_t cell_voltages_bms1;
     CellVoltages_t cell_voltages_bms2;
     CellTemps_t cell_temps;
@@ -81,12 +96,13 @@ extern Acc_Summary_t acc_summary;
 void Acc_GetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t* last_update);
 
 /**
- * @brief Gets the error status for the ACC module.
+ * @brief Gets the latest heartbeat fault status for the ACC module.
  *
  * @param module Pointer to the ACC module instance.
- * @param errored Output pointer for the error status.
+ * @param fault_count Output pointer for the module's fault counter (may be NULL).
+ * @param bms_state Output pointer for the module's state-machine state (may be NULL).
  */
-void Acc_GetErrorStatus(Acc_Module_t *module, bool* errored);
+void Acc_GetHeartbeatStatus(Acc_Module_t *module, uint16_t *fault_count, uint8_t *bms_state);
 
 /**
  * @brief Gets all cell voltages for the ACC module.

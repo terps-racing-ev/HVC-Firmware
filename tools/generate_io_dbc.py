@@ -34,6 +34,8 @@ ERROR_SIGNAL_NAME_OVERRIDES = {
     "BMS_ERR_BMB_ERROR": "Err_BmbError",
 }
 
+NAME_PREFIX = "HVC_"
+
 
 def _parse_can_ids(header_path: Path) -> dict[str, int]:
     """Extract selected CAN ID #defines from the header file."""
@@ -132,17 +134,24 @@ def _dbc_frame_id(can_id: int) -> int:
     return can_id | 0x80000000
 
 
+def _prefixed_name(name: str) -> str:
+    """Apply the DBC HVC_ prefix to messages and signals."""
+    if name.startswith(NAME_PREFIX):
+        return name
+    return f"{NAME_PREFIX}{name}"
+
+
 def _error_signal_name(error_name: str) -> str:
     """Convert enum name (BMS_ERR_*) to a compact DBC signal name."""
     if error_name in ERROR_SIGNAL_NAME_OVERRIDES:
-        return ERROR_SIGNAL_NAME_OVERRIDES[error_name]
+        return _prefixed_name(ERROR_SIGNAL_NAME_OVERRIDES[error_name])
 
     base = error_name
     if base.startswith("BMS_ERR_"):
         base = base[len("BMS_ERR_"):]
 
     parts = [part for part in base.split("_") if part]
-    return "Err_" + "".join(part.title() for part in parts)
+    return _prefixed_name("Err_" + "".join(part.title() for part in parts))
 
 
 def _generate_dbc_text(
@@ -189,7 +198,10 @@ def _generate_dbc_text(
     error_values_block = "\n".join(error_value_lines)
     raw_error_mask_line = ""
     if include_raw_error_mask:
-        raw_error_mask_line = ' SG_ BMS_ErrorMask : 8|32@1+ (1,0) [0|4294967295] "" Vector__XXX\n'
+        raw_error_mask_line = (
+            f' SG_ {_prefixed_name("BMS_ErrorMask")} : 8|32@1+ '
+            '(1,0) [0|4294967295] "" Vector__XXX\n'
+        )
 
     return f'''VERSION ""
 
@@ -227,47 +239,51 @@ BS_:
 
 BU_: {node_name}
 
-BO_ {io_summary_dbc_id} IO_Summary: 7 {node_name}
- SG_ SDC_Closed : 0|1@1+ (1,0) [0|1] "" Vector__XXX
- SG_ IMD_Ok : 1|1@1+ (1,0) [0|1] "" Vector__XXX
- SG_ BMS_Fault_Ok : 2|1@1+ (1,0) [0|1] "" Vector__XXX
- SG_ Ref_Temp_C : 40|16@1- (0.01,0) [-327.68|327.67] "degC" Vector__XXX
+BO_ {io_summary_dbc_id} {_prefixed_name("IO_Summary")}: 7 {node_name}
+ SG_ {_prefixed_name("SDC_Open")} : 0|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ {_prefixed_name("IMD_Fault")} : 1|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ {_prefixed_name("BMS_Fault")} : 2|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ {_prefixed_name("Ref_Temp_C")} : 40|16@1- (0.01,0) [-327.68|327.67] "degC" Vector__XXX
 
-BO_ {io_current_dbc_id} IO_Current: 8 {node_name}
- SG_ Current_Low_mA : 0|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
- SG_ Current_High_mA : 32|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
+BO_ {io_current_dbc_id} {_prefixed_name("IO_Current")}: 8 {node_name}
+ SG_ {_prefixed_name("Current_Low_mA")} : 0|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
+ SG_ {_prefixed_name("Current_High_mA")} : 32|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
 
-BO_ {io_vsense_dbc_id} IO_VSense: 8 {node_name}
- SG_ Batt_Voltage_mV : 0|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
- SG_ Inv_Voltage_mV : 32|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
+BO_ {io_vsense_dbc_id} {_prefixed_name("IO_VSense")}: 8 {node_name}
+ SG_ {_prefixed_name("Batt_Voltage_mV")} : 0|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
+ SG_ {_prefixed_name("Inv_Voltage_mV")} : 32|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
 
-BO_ {state_dbc_id} BMS_State: 5 {node_name}
- SG_ BMS_State : 0|8@1+ (1,0) [0|255] "" Vector__XXX
+BO_ {state_dbc_id} {_prefixed_name("BMS_State")}: 7 {node_name}
+ SG_ {_prefixed_name("BMS_State")} : 0|8@1+ (1,0) [0|255] "" Vector__XXX
 {raw_error_mask_line}{error_signals_block}
+ SG_ {_prefixed_name("BMB_Fault_Module")} : 40|8@1+ (1,0) [0|255] "" Vector__XXX
+ SG_ {_prefixed_name("BMB_Fault_State")} : 48|8@1+ (1,0) [0|6] "" Vector__XXX
 
-BO_ {errored_panic_dbc_id} Errored_Panic: 0 {node_name}
+BO_ {errored_panic_dbc_id} {_prefixed_name("Errored_Panic")}: 0 {node_name}
 
-BO_ {soc_dbc_id} SOC: 8 {node_name}
- SG_ SOC_Percent : 0|16@1+ (0.01,0) [0|100] "%" Vector__XXX
- SG_ SOC_Capacity_As : 16|16@1+ (1,0) [0|65535] "A*s" Vector__XXX
- SG_ SOC_Delta_As : 32|32@1- (1,0) [-2147483648|2147483647] "A*s" Vector__XXX
+BO_ {soc_dbc_id} {_prefixed_name("SOC")}: 8 {node_name}
+ SG_ {_prefixed_name("SOC_Percent")} : 0|16@1+ (0.01,0) [0|100] "%" Vector__XXX
+ SG_ {_prefixed_name("SOC_Capacity_As")} : 16|16@1+ (1,0) [0|65535] "A*s" Vector__XXX
+ SG_ {_prefixed_name("SOC_Delta_As")} : 32|32@1- (1,0) [-2147483648|2147483647] "A*s" Vector__XXX
 
-BO_ {acc_summary_dbc_id} ACC_Summary: 8 {node_name}
- SG_ Acc_Volt_Min_mV : 0|16@1+ (1,0) [0|65535] "mV" Vector__XXX
- SG_ Acc_Volt_Max_mV : 16|16@1+ (1,0) [0|65535] "mV" Vector__XXX
- SG_ Acc_Temp_Min_C : 32|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
- SG_ Acc_Temp_Max_C : 48|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
+BO_ {acc_summary_dbc_id} {_prefixed_name("ACC_Summary")}: 8 {node_name}
+ SG_ {_prefixed_name("Acc_Volt_Min_mV")} : 0|16@1+ (1,0) [0|65535] "mV" Vector__XXX
+ SG_ {_prefixed_name("Acc_Volt_Max_mV")} : 16|16@1+ (1,0) [0|65535] "mV" Vector__XXX
+ SG_ {_prefixed_name("Acc_Temp_Min_C")} : 32|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
+ SG_ {_prefixed_name("Acc_Temp_Max_C")} : 48|16@1- (0.1,0) [-3276.8|3276.7] "degC" Vector__XXX
 
-BO_ {current_limit_dbc_id} Current_Limit: 8 {node_name}
- SG_ Negative_Current_Limit_mA : 0|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
- SG_ Positive_Current_Limit_mA : 32|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
+BO_ {current_limit_dbc_id} {_prefixed_name("Current_Limit")}: 8 {node_name}
+ SG_ {_prefixed_name("Negative_Current_Limit_mA")} : 0|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
+ SG_ {_prefixed_name("Positive_Current_Limit_mA")} : 32|32@1+ (1,0) [0|4294967295] "mA" Vector__XXX
 
-BO_ {pl_signal_dbc_id} PL_Signal: 1 {node_name}
- SG_ PL_Signal_Reason : 0|8@1+ (1,0) [0|255] "" Vector__XXX
+BO_ {pl_signal_dbc_id} {_prefixed_name("PL_Signal")}: 1 {node_name}
+ SG_ {_prefixed_name("PL_Signal_Reason")} : 0|8@1+ (1,0) [0|255] "" Vector__XXX
 
-VAL_ {state_dbc_id} BMS_State 0 "PRE_INIT" 1 "RUNNING" 2 "CHARGING" 3 "BALANCING" 4 "ERRORED" ;
-VAL_ {pl_signal_dbc_id} PL_Signal_Reason 0 "NORMAL_OPEN" 1 "NORMAL_CLOSED" 2 "BMS_ERRORED" 3 "BATT_FLOATING" 4 "CHARGING" ;
+VAL_ {state_dbc_id} {_prefixed_name("BMS_State")} 0 "PRE_INIT" 1 "RUNNING" 2 "CHARGING" 3 "BALANCING" 4 "ERRORED" ;
+VAL_ {pl_signal_dbc_id} {_prefixed_name("PL_Signal_Reason")} 0 "NORMAL_OPEN" 1 "NORMAL_CLOSED" 2 "BMS_ERRORED" 3 "BATT_FLOATING" 4 "CHARGING" ;
 {error_values_block}
+VAL_ {state_dbc_id} {_prefixed_name("BMB_Fault_Module")} 255 "None" ;
+VAL_ {state_dbc_id} {_prefixed_name("BMB_Fault_State")} 0 "INIT" 1 "IDLE" 2 "CHARGING" 3 "DISCHARGING" 4 "BALANCING" 5 "FAULT" 6 "RESERVED" ;
 '''
 
 
