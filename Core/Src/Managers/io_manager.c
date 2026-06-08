@@ -20,6 +20,7 @@
 #include "io_manager.h"
 #include "acc.h"
 #include "vsense.h"
+#include "soc.h"
 #include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
 
@@ -43,18 +44,24 @@ static void _IO_UpdateFloatingInputFlags(
     bool batt_sample_valid
 );
 static void _IO_PackIOSummary(
-    uint8_t *data, 
+    uint8_t *data,
     uint8_t *length,
     bool sdc_val,
     bool imd_val,
     float temp_val,
-    bool bms_fault_val
+    bool bms_fault_val,
+    int16_t pack_power_x100,
+    int16_t peak_power_x100
 );
+static int16_t _IO_UpdatePeakPower(int16_t current_power);
+static int32_t _IO_SelectPackCurrent(int32_t cs_low_val, int32_t cs_high_val);
+static int16_t _IO_SatI16(int64_t value);
 static void _IO_PackCurrentSenseMessage(
     uint8_t *data,
     uint8_t *length,
     int32_t cs_low_val,
-    int32_t cs_high_val
+    int32_t cs_high_val,
+    int32_t pack_current_val
 );
 static void _IO_PackVSenseMessage(
     uint8_t *data,
@@ -91,6 +98,9 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     if (IO_InitTemp(&ref_temp, "Ref_Temp_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_low, "CS_Low_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_high, "CS_High_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitCurrent(&pack_curr, "Pack_Curr_Mutex") != HAL_OK) return HAL_ERROR;
+    // Override the default current window with the dedicated 100ms pack-current average
+    MovingAverage_Init(&pack_curr.ma, IO_PACK_CURRENT_MA_WINDOW);
     if (IO_InitVSense(&batt, "Batt_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitVSense(&inv, "Inv_Mutex") != HAL_OK) return HAL_ERROR;
 
@@ -223,6 +233,20 @@ static void _IO_LowPriority(void)
 
     // TODO: Emeter temps?
 
+    // Read current and voltage once; reuse across all messages.
+    // pack_curr is the channel-corrected, 100ms-averaged pack current (mA).
+    int32_t cs_low_val = IO_GetCurrent(&cs_low);
+    int32_t cs_high_val = IO_GetCurrent(&cs_high);
+    int32_t pack_current_mA = IO_GetCurrent(&pack_curr);
+    uint32_t batt_mv = IO_GetVSense(&batt);
+    uint32_t inv_mv = IO_GetVSense(&inv);
+
+    // Pack power from inverter voltage and averaged pack current.
+    // 0.01 kW/LSB: (V_mV/1e3 * I_mA/1e3) W / 1e3 kW * 100 = V_mV * I_mA / 1e7
+    int64_t power_x100 = ((int64_t)inv_mv * (int64_t)pack_current_mA) / 10000000LL;
+    int16_t pack_power = _IO_SatI16(power_x100);
+    int16_t peak_power = _IO_UpdatePeakPower(pack_power);
+
     // Send summary message
     _IO_PackIOSummary(
         can_data,
@@ -230,7 +254,9 @@ static void _IO_LowPriority(void)
         sdc_raw,
         imd_raw,
         temp,
-        !IO_GetDigitalIO(&bms_fault)
+        !IO_GetDigitalIO(&bms_fault),
+        pack_power,
+        peak_power
     );
     HVC_CAN_SendMessage(
         CAN_ID_IO_SUMMARY,
@@ -239,12 +265,12 @@ static void _IO_LowPriority(void)
         CAN_PRIORITY_NORMAL
     );
 
-    // TODO: make this max current in an interval
     _IO_PackCurrentSenseMessage(
         can_data,
         &can_data_len,
-        IO_GetCurrent(&cs_low),
-        IO_GetCurrent(&cs_high)
+        cs_low_val,
+        cs_high_val,
+        pack_current_mA
     );
     HVC_CAN_SendMessage(
         CAN_ID_IO_CURRENT,
@@ -256,8 +282,8 @@ static void _IO_LowPriority(void)
     _IO_PackVSenseMessage(
         can_data,
         &can_data_len,
-        IO_GetVSense(&batt),
-        IO_GetVSense(&inv)
+        batt_mv,
+        inv_mv
     );
     HVC_CAN_SendMessage(
         CAN_ID_IO_VSENSE,
@@ -269,8 +295,6 @@ static void _IO_LowPriority(void)
 
 static void _IO_HighPriority(void)
 {
-    uint8_t current_summary[8], current_summary_len;
-    uint8_t vsense_summary[8], vsense_summary_len;
     uint16_t cs_low_raw_val = IO_GetAnalogIO(&cs_low_raw);
     uint16_t cs_high_raw_val = IO_GetAnalogIO(&cs_high_raw);
     uint16_t batt_raw_val = IO_GetAnalogIO(&batt_raw);
@@ -341,9 +365,14 @@ static void _IO_HighPriority(void)
         cs_high_filt_val = 0;
     }
 
+    // Channel-correct then apply the dedicated 100ms pack-current rolling average.
+    int32_t pack_sel = _IO_SelectPackCurrent(cs_low_filt_val, cs_high_filt_val);
+    int32_t pack_filt_val = MovingAverage_Update(&pack_curr.ma, pack_sel);
+
     // Set cs values
     IO_SetCurrent(&cs_low, cs_low_filt_val);
     IO_SetCurrent(&cs_high, cs_high_filt_val);
+    IO_SetCurrent(&pack_curr, pack_filt_val);
     IO_SetVSense(&batt, batt_voltage_filt);
     IO_SetVSense(&inv, inv_voltage_filt);
 
@@ -470,13 +499,63 @@ static void _IO_UpdateFloatingInputFlags(
     }
 }
 
+static int16_t _IO_UpdatePeakPower(int16_t current_power)
+{
+    static int16_t history[IO_PACK_POWER_HIST_LEN];
+    static uint16_t head = 0U;
+    static bool full = false;
+
+    history[head] = current_power;
+    head++;
+    if (head >= IO_PACK_POWER_HIST_LEN) {
+        head = 0U;
+        full = true;
+    }
+
+    uint16_t count = full ? (uint16_t)IO_PACK_POWER_HIST_LEN : head;
+    int16_t peak = history[0];
+    int16_t abs_peak = (peak >= 0) ? peak : (int16_t)(-peak);
+    for (uint16_t i = 1U; i < count; i++) {
+        int16_t abs_i = (history[i] >= 0) ? history[i] : (int16_t)(-history[i]);
+        if (abs_i > abs_peak) {
+            abs_peak = abs_i;
+            peak = history[i];
+        }
+    }
+    return peak;
+}
+
+/**
+ * @brief Channel-correct the pack current. Mirrors the SOC module: use the high
+ *        channel once |low channel| reaches the switch point (offset early to
+ *        stay within the low channel's accurate range), otherwise the low channel.
+ */
+static int32_t _IO_SelectPackCurrent(int32_t cs_low_val, int32_t cs_high_val)
+{
+    int32_t abs_low = (cs_low_val < 0) ? -cs_low_val : cs_low_val;
+    int32_t threshold = SOC_HIGH_CHANNEL_SWITCH_CURRENT_MA - SOC_HIGH_CHANNEL_SWITCH_OFFSET_MA;
+    return (abs_low >= threshold) ? cs_high_val : cs_low_val;
+}
+
+/**
+ * @brief Saturate a 64-bit value into the int16_t range.
+ */
+static int16_t _IO_SatI16(int64_t value)
+{
+    if (value > INT16_MAX) { return INT16_MAX; }
+    if (value < INT16_MIN) { return INT16_MIN; }
+    return (int16_t)value;
+}
+
 static void _IO_PackIOSummary(
-    uint8_t *data, 
+    uint8_t *data,
     uint8_t *length,
     bool sdc_val,
     bool imd_val,
     float temp_val,
-    bool bms_fault_val
+    bool bms_fault_val,
+    int16_t pack_power_x100,
+    int16_t peak_power_x100
 ){
     int16_t temp_c_x100;
 
@@ -504,7 +583,15 @@ static void _IO_PackIOSummary(
     // 3) bms_fault (bit 2)
     data[0] |= (uint8_t)((bms_fault_val & 0x01U) << 2U);
 
-    // 4) temp (little-endian int16_t, degrees C x100)
+    // 4) pack power (bits 8-23, little-endian int16_t, 0.01 kW/LSB)
+    data[1] = (uint8_t)((uint16_t)pack_power_x100 & 0xFFU);
+    data[2] = (uint8_t)(((uint16_t)pack_power_x100 >> 8U) & 0xFFU);
+
+    // 5) 30s peak pack power (bits 24-39, little-endian int16_t, 0.01 kW/LSB)
+    data[3] = (uint8_t)((uint16_t)peak_power_x100 & 0xFFU);
+    data[4] = (uint8_t)(((uint16_t)peak_power_x100 >> 8U) & 0xFFU);
+
+    // 6) temp (bits 40-55, little-endian int16_t, degrees C x100)
     temp_c_x100 = (int16_t)(temp_val * 100.0f);
     data[5] = (uint8_t)(temp_c_x100 & 0xFF);
     data[6] = (uint8_t)(((uint16_t)temp_c_x100 >> 8U) & 0xFFU);
@@ -514,27 +601,25 @@ static void _IO_PackCurrentSenseMessage(
     uint8_t *data,
     uint8_t *length,
     int32_t cs_low_val,
-    int32_t cs_high_val
+    int32_t cs_high_val,
+    int32_t pack_current_val
 ){
-    uint32_t cs_low_u;
-    uint32_t cs_high_u;
-
     if ((data == NULL) || (length == NULL)) {
         return;
     }
 
-    cs_low_u = (uint32_t)cs_low_val;
-    cs_high_u = (uint32_t)cs_high_val;
+    // Each signal is int16_t at 0.01 A/LSB (10 mA/LSB), so raw = mA / 10.
+    uint16_t cs_low_u  = (uint16_t)_IO_SatI16((int64_t)cs_low_val / 10);
+    uint16_t cs_high_u = (uint16_t)_IO_SatI16((int64_t)cs_high_val / 10);
+    uint16_t pack_u    = (uint16_t)_IO_SatI16((int64_t)pack_current_val / 10);
 
     data[0] = (uint8_t)(cs_low_u & 0xFFU);
     data[1] = (uint8_t)((cs_low_u >> 8U) & 0xFFU);
-    data[2] = (uint8_t)((cs_low_u >> 16U) & 0xFFU);
-    data[3] = (uint8_t)((cs_low_u >> 24U) & 0xFFU);
-    data[4] = (uint8_t)(cs_high_u & 0xFFU);
-    data[5] = (uint8_t)((cs_high_u >> 8U) & 0xFFU);
-    data[6] = (uint8_t)((cs_high_u >> 16U) & 0xFFU);
-    data[7] = (uint8_t)((cs_high_u >> 24U) & 0xFFU);
-    *length = 8U;
+    data[2] = (uint8_t)(cs_high_u & 0xFFU);
+    data[3] = (uint8_t)((cs_high_u >> 8U) & 0xFFU);
+    data[4] = (uint8_t)(pack_u & 0xFFU);
+    data[5] = (uint8_t)((pack_u >> 8U) & 0xFFU);
+    *length = 6U;
 }
 
 static void _IO_PackVSenseMessage(

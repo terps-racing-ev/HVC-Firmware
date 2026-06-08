@@ -243,15 +243,18 @@ BO_ {io_summary_dbc_id} {_prefixed_name("IO_Summary")}: 7 {node_name}
  SG_ {_prefixed_name("SDC_Open")} : 0|1@1+ (1,0) [0|1] "" Vector__XXX
  SG_ {_prefixed_name("IMD_Fault")} : 1|1@1+ (1,0) [0|1] "" Vector__XXX
  SG_ {_prefixed_name("BMS_Fault")} : 2|1@1+ (1,0) [0|1] "" Vector__XXX
+ SG_ {_prefixed_name("Pack_Power_kW")} : 8|16@1- (0.01,0) [-327.68|327.67] "kW" Vector__XXX
+ SG_ {_prefixed_name("Peak_Pack_Power_kW")} : 24|16@1- (0.01,0) [-327.68|327.67] "kW" Vector__XXX
  SG_ {_prefixed_name("Ref_Temp_C")} : 40|16@1- (0.01,0) [-327.68|327.67] "degC" Vector__XXX
 
-BO_ {io_current_dbc_id} {_prefixed_name("IO_Current")}: 8 {node_name}
- SG_ {_prefixed_name("Current_Low_mA")} : 0|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
- SG_ {_prefixed_name("Current_High_mA")} : 32|32@1- (1,0) [-2147483648|2147483647] "mA" Vector__XXX
+BO_ {io_current_dbc_id} {_prefixed_name("IO_Current")}: 6 {node_name}
+ SG_ {_prefixed_name("Current_Low_A")} : 0|16@1- (0.01,0) [-327.68|327.67] "A" Vector__XXX
+ SG_ {_prefixed_name("Current_High_A")} : 16|16@1- (0.01,0) [-327.68|327.67] "A" Vector__XXX
+ SG_ {_prefixed_name("Pack_Current_A")} : 32|16@1- (0.01,0) [-327.68|327.67] "A" Vector__XXX
 
 BO_ {io_vsense_dbc_id} {_prefixed_name("IO_VSense")}: 8 {node_name}
- SG_ {_prefixed_name("Batt_Voltage_mV")} : 0|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
- SG_ {_prefixed_name("Inv_Voltage_mV")} : 32|32@1+ (1,0) [0|4294967295] "mV" Vector__XXX
+ SG_ {_prefixed_name("Batt_Voltage_V")} : 0|32@1+ (0.001,0) [0|4294967.295] "V" Vector__XXX
+ SG_ {_prefixed_name("Inv_Voltage_V")} : 32|32@1+ (0.001,0) [0|4294967.295] "V" Vector__XXX
 
 BO_ {state_dbc_id} {_prefixed_name("BMS_State")}: 7 {node_name}
  SG_ {_prefixed_name("BMS_State")} : 0|8@1+ (1,0) [0|255] "" Vector__XXX

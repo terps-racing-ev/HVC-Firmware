@@ -83,6 +83,7 @@ extern AnalogIO inv_raw;
 extern Temp ref_temp;
 extern Current cs_low;
 extern Current cs_high;
+extern Current pack_curr;
 extern VSense_t batt;
 extern VSense_t inv;
 

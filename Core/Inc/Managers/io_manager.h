@@ -33,6 +33,10 @@
 #define IO_MIN_BATT_FLOATING_VOLTAGE_MV 40000
 #define IO_MIN_CURR_FLOATING_ADC 16
 #define IO_MAX_CURR_FLOATING_ADC 4079
+// Pack power rolling-peak history: 300 samples x 100ms low-priority period = 30s
+#define IO_PACK_POWER_HIST_LEN 300
+// Pack current rolling average: 10 samples x 10ms high-priority period = 100ms
+#define IO_PACK_CURRENT_MA_WINDOW 10
 
 #define INVERSE_PRECHARGE_FACTOR 100.0/90.0
 

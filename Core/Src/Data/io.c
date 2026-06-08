@@ -13,6 +13,7 @@ AnalogIO inv_raw = {0};
 Temp ref_temp = {0};
 Current cs_low = {0};
 Current cs_high = {0};
+Current pack_curr = {0};
 VSense_t batt = {0};
 VSense_t inv = {0};
 
