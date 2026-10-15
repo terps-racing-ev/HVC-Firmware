@@ -27,7 +27,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "io.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -52,7 +52,11 @@ void MemManage_Handler(void);
 void BusFault_Handler(void);
 void UsageFault_Handler(void);
 void DebugMon_Handler(void);
-void EXTI1_IRQHandler(void);
+void EXTI4_IRQHandler(void);
+void CAN1_TX_IRQHandler(void);
+void CAN1_RX0_IRQHandler(void);
+void CAN1_RX1_IRQHandler(void);
+void CAN1_SCE_IRQHandler(void);
 void TIM6_DAC_IRQHandler(void);
 void COMP_IRQHandler(void);
 /* USER CODE BEGIN EFP */

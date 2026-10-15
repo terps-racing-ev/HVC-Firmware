@@ -15,10 +15,41 @@
   *
   ******************************************************************************
   */
-
 #include "stm32l4xx_hal.h"
+#include "curr_sense.h"
 
-uint32_t Curr_CalculateCurrentSense(uint32_t adc_value) {
-    // Off datasheet
-    return (uint32_t)((2 * 250 * (adc_value / 4095.0 * 3.3) - 625) * 1000);
+// https://www.lem.com/sites/default/files/products_datasheets/dhab_s124_v5.pdf
+
+int32_t Curr_CalculateCurrentSenseHigh(uint32_t adc_value, uint32_t vref) {
+  // Off datasheet
+  // I = (Uout - U0) * 1/S
+  // Uout = output voltage, which is voltage divider scale factor * (adc_value / 4096 * vref/1000)
+  // Uo = 2.5
+  // 1/S = 1/(0.004) = 250 (given by datasheet)
+  // Measured voltage divider scale factor = 2.00200401
+
+  int32_t current = (int32_t)(122.19263 * vref * adc_value / 1000.0  - 625000);
+
+  #ifdef FLIP_CURRENT
+  current *= -1;
+  #endif
+
+  return current;
+}
+
+int32_t Curr_CalculateCurrentSenseLow(uint32_t adc_value, uint32_t vref) {
+  // Also off datasheet
+  // I = (Uout - U0) * 1/S
+  // Uout = output voltage, which from adc_value is voltage divider scale factor * (adc_value / 4096 * vref/1000)
+  // Uo = 2.5
+  // 1/S = 1/(0.0267) = 37.45318 (given by datasheet)
+  // Measured voltage divider scale factor = 2.00100301
+
+  int32_t current = (int32_t)(18.2968586 * vref * adc_value / 1000.0 - 93632.9588);
+
+  #ifdef FLIP_CURRENT
+  current *= -1;
+  #endif
+
+  return current;
 }

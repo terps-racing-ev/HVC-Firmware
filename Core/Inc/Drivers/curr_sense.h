@@ -15,7 +15,24 @@
   *
   ******************************************************************************
   */
-
 #include "stm32l4xx_hal.h"
 
-uint32_t Curr_CalculateCurrentSense(uint32_t adc_value);
+// https://www.lem.com/sites/default/files/products_datasheets/dhab_s124_v5.pdf
+
+#define FLIP_CURRENT
+
+// TODO: implement offset based on what voltage is actually 0A on current sensor
+
+/**
+ * @brief Convert current sense voltage from high channel to current in mA
+ * @param adc_value: Raw reading from adc
+ * @param vref: ADC reference voltage in mV
+ */
+int32_t Curr_CalculateCurrentSenseHigh(uint32_t adc_value, uint32_t vref);
+
+/**
+ * @brief Convert current sense voltage from low channel to current in mA
+ * @param adc_value: Raw reading from adc
+ * @param vref: ADC reference voltage in mV
+ */
+int32_t Curr_CalculateCurrentSenseLow(uint32_t adc_value, uint32_t vref);

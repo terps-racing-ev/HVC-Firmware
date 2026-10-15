@@ -18,6 +18,7 @@ COMMON_SOURCES := $(TEST_DIR)/stubs.c
 # Override common sources for specific tests with COMMON_SOURCES_<name>
 COMMON_SOURCES_bms_can_manager := $(TEST_DIR)/bms_can_stubs.c
 MODULE_SOURCE_curr_sense := Core/Src/Drivers/curr_sense.c
+MODULE_SOURCE_io_manager := Core/Src/Managers/io_manager.c Core/Src/Drivers/curr_sense.c
 
 REQUESTED_TESTS := $(filter-out test clean,$(MAKECMDGOALS))
 ifneq ($(REQUESTED_TESTS),)

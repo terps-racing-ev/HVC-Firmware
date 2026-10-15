@@ -19,6 +19,10 @@
 
 #include "stm32l4xx_hal.h"
 #include "acc.h"
+#include "state.h"
+
+
+#define ACC_UPDATE_FREQ_MS 100
 
 /**
   * @brief  Initialize acc manager

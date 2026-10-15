@@ -26,8 +26,21 @@
 #include "curr_sense.h"
 #include "stm32l4xx_hal.h"
 
-#define IO_UPDATE_FREQ_MS 10
-#define IO_PRIORITY_UPDATE_FREQ_MS 1
+#define IO_UPDATE_FREQ_MS 100
+#define IO_PRIORITY_UPDATE_FREQ_MS 10
+// Max reading on ADC that signifies floating input
+#define IO_MAX_BATT_FLOATING_VOLTAGE_MV 50000
+#define IO_MIN_BATT_FLOATING_VOLTAGE_MV 40000
+#define IO_MIN_CURR_FLOATING_ADC 16
+#define IO_MAX_CURR_FLOATING_ADC 4079
+// Pack power rolling-peak history: 300 samples x 100ms low-priority period = 30s
+#define IO_PACK_POWER_HIST_LEN 300
+// Pack current rolling average: 10 samples x 10ms high-priority period = 100ms
+#define IO_PACK_CURRENT_MA_WINDOW 10
+
+#define INVERSE_PRECHARGE_FACTOR 100.0/90.0
+
+#define ADC_SAMPLE_TIME ADC_SAMPLETIME_640CYCLES_5
 
 /**
   * @brief  Initialize IO manager
@@ -36,15 +49,9 @@
 HAL_StatusTypeDef IO_Manager_Init(void);
 
 /**
-  * @brief  Main IO manager task
+  * @brief  Combined IO manager task. Runs at the priority update rate and
+  *         also services the regular IO cadence.
   * @param  argument: Not used
   * @retval None
   */
 void IO_ManagerTask(void *argument);
-
-/**
-  * @brief  Main IO manager task (for priority io values). Runs at faster rate.
-  * @param  argument: Not used
-  * @retval None
-  */
-void IO_PriorityManagerTask(void *argument);

@@ -31,6 +31,8 @@ extern "C" {
 #include "can.h"
 #include "state.h"
 #include "bmb.h"
+#include "debug.h"
+#include "charging.h"
 
 /* External Variables --------------------------------------------------------*/
 extern CAN_HandleTypeDef hcan1;
@@ -50,22 +52,23 @@ HAL_StatusTypeDef BMS_CAN_Manager_Init(void);
   */
 void BMS_CAN_ManagerTask(void *argument);
 
-typedef bool (*DecodeFunc)(const CAN_Message_t *in, BMS_Message *out);
-typedef bool (*HandleFunc)(const BMS_Message *msg);
+typedef bool (*BMS_DecodeFunc)(const CAN_Message_t *in, BMS_Message_t *out);
+typedef bool (*BMS_HandleFunc)(const BMS_Message_t *msg);
 
 typedef struct {
-    DecodeFunc decode;
-    HandleFunc handle;
-} CanDispatchEntry;
+    BMS_DecodeFunc decode;
+    BMS_HandleFunc handle;
+} BMS_CanDispatchEntry;
 
-static const CanDispatchEntry DispatchRegister[] = {
+static const BMS_CanDispatchEntry BMS_DispatchRegister[] = {
     {DecodeCellTempSummary, HandleCellTempSummary},
     {DecodeAmbientTemps, HandleAmbientTemps},
-    {DecodeCellVoltages, HandleCellVoltages},
-    {DecodeBMSHeartbeat, HandleBMSHeartbeat}
-    
+    {DecodeVoltageSummary, HandleVoltageSummary},
+    {DecodeBMSHeartbeat, HandleBMSHeartbeat},
+    {DecodeResetBMS, HandleResetBMS},
+    {DecodeChargingHeartbeatBMS, HandleChargingHeartbeatBMS}
 };
-extern const uint8_t DispatchRegisterCount; // Computed at runtime in bms can manager
+#define BMS_DispatchRegisterCount (sizeof(BMS_DispatchRegister)/sizeof(BMS_CanDispatchEntry))
 
 #ifdef __cplusplus
 }

@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "cmsis_os2.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -43,6 +43,7 @@ extern "C" {
 /* USER CODE BEGIN EC */
 extern ADC_HandleTypeDef hadc1;
 extern COMP_HandleTypeDef hcomp2;
+extern osThreadId_t SPI_IntCallbackHandle;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -62,32 +63,36 @@ void Error_Handler(void);
 #define CS_HC_GPIO_Port GPIOA
 #define CS_LC_Pin GPIO_PIN_1
 #define CS_LC_GPIO_Port GPIOA
-#define Therm_Pin GPIO_PIN_3
-#define Therm_GPIO_Port GPIOA
+#define BATT_Pin GPIO_PIN_2
+#define BATT_GPIO_Port GPIOA
+#define INV_Pin GPIO_PIN_3
+#define INV_GPIO_Port GPIOA
 #define SPI1_CS_Pin GPIO_PIN_4
 #define SPI1_CS_GPIO_Port GPIOA
-#define EMeter_Sig_Pin GPIO_PIN_0
-#define EMeter_Sig_GPIO_Port GPIOB
-#define LV_CAN_INT_Pin GPIO_PIN_1
-#define LV_CAN_INT_GPIO_Port GPIOB
-#define LV_CAN_INT_EXTI_IRQn EXTI1_IRQn
+#define THERM_Pin GPIO_PIN_0
+#define THERM_GPIO_Port GPIOB
 #define IMD_Pin GPIO_PIN_9
 #define IMD_GPIO_Port GPIOA
 #define SDC_Pin GPIO_PIN_10
 #define SDC_GPIO_Port GPIOA
 #define LD3_Pin GPIO_PIN_3
 #define LD3_GPIO_Port GPIOB
-#define Batt_Pin GPIO_PIN_4
-#define Batt_GPIO_Port GPIOB
-#define PL_Signal_Pin GPIO_PIN_5
-#define PL_Signal_GPIO_Port GPIOB
+#define LV_CAN_INT_Pin GPIO_PIN_4
+#define LV_CAN_INT_GPIO_Port GPIOB
+#define LV_CAN_INT_EXTI_IRQn EXTI4_IRQn
+#define PL_SIGNAL_Pin GPIO_PIN_5
+#define PL_SIGNAL_GPIO_Port GPIOB
 #define BMS_Fault_Pin GPIO_PIN_6
 #define BMS_Fault_GPIO_Port GPIOB
-#define Inv_Pin GPIO_PIN_7
-#define Inv_GPIO_Port GPIOB
+#define EMeter_Therm_Pin GPIO_PIN_7
+#define EMeter_Therm_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+#define ADC_CHANNEL_CS_HC ADC_CHANNEL_5
+#define ADC_CHANNEL_CS_LC ADC_CHANNEL_6
+#define ADC_CHANNEL_BATT ADC_CHANNEL_7
+#define ADC_CHANNEL_INV ADC_CHANNEL_8
+#define ADC_CHANNEL_THERM ADC_CHANNEL_15
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

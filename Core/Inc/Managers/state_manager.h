@@ -23,12 +23,27 @@
 #include "can_id.h"
 #include "acc.h"
 
-#define STATE_REFRESH_FREQ_MS 10
+#define STATE_REFRESH_FREQ_MS 100
 
-#define MODULE_TIMEOUT_CUTOFF_TICKS 100
+#define MODULE_TIMEOUT_CUTOFF_TICKS 2000
 
-#define CHECK_MODULE_TIMEOUT 1
+// A module reports faults via its heartbeat Fault_Count signal. To avoid
+// tripping on transient blips, a module must report Fault_Count > 0
+// continuously for at least this long (ms) before a BMB fault is latched.
+#define BMB_FAULT_GRACE_PERIOD_MS 5000
+
+// Sentinel reported in the state message when no module is latching a BMB fault.
+#define BMB_FAULT_NO_MODULE 0xFFU
+
+#define CHECK_MODULE_TIMEOUT 0
 #define CHECK_REF_OVERTEMP 1
+#define CHECK_BATT_FLOATING 1
+#define CHECK_CURR_SENSE_FLOATING 1
+#define CHECK_BMB_ERRORS 1
+#define CHECK_BMS_CAN_ERRORS 0
+#define CHECK_LV_CAN_ERRORS 0
+
+#define MAX_CYCLES_WITHOUT_CHARGE_REQUEST 10
 
 /**
   * @brief  Initialize State manager

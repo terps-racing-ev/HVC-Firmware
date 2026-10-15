@@ -17,6 +17,8 @@ static size_t mutex_new_result_count = 0;
 static size_t mutex_new_result_index = 0;
 static uint32_t mutex_new_call_count = 0;
 
+static uint32_t test_event_flags = 0U;
+
 static HAL_StatusTypeDef can_activate_notification_result = HAL_OK;
 static uint32_t can_activate_notification_call_count = 0;
 
@@ -27,6 +29,14 @@ static uint8_t can_get_rx_dlc = 0;
 
 static HAL_StatusTypeDef adc_start_result = HAL_OK;
 static HAL_StatusTypeDef comp_start_result = HAL_OK;
+static uint32_t adc_values[64];
+static size_t adc_value_count = 0;
+static size_t adc_value_index = 0;
+static GPIO_PinState gpio_read_values[16];
+static size_t gpio_read_value_count = 0;
+static size_t gpio_read_value_index = 0;
+static uint32_t gpio_write_call_count = 0;
+static GPIO_PinState last_gpio_write_state = GPIO_PIN_RESET;
 
 static uint32_t kernel_tick = 0;
 static Test_DelayHook delay_hook = NULL;
@@ -41,11 +51,12 @@ COMP_HandleTypeDef hcomp2;
 __attribute__((weak)) uint8_t io_initialized = 0;
 __attribute__((weak)) uint8_t bms_can_initialized = 0;
 __attribute__((weak)) uint8_t lv_can_initialized = 0;
+__attribute__((weak)) osEventFlagsId_t floating_input_flag = (osEventFlagsId_t)0x1;
 __attribute__((weak)) Temp ref_temp = {0};
-__attribute__((weak)) Acc_Module *acc[NUM_ACC_MODULES] = {0};
+__attribute__((weak)) Acc_Module_t *acc[NUM_ACC_MODULES] = {0};
 
 static State test_state = PRE_INIT;
-static Acc_Module test_acc_modules[NUM_ACC_MODULES];
+static Acc_Module_t test_acc_modules[NUM_ACC_MODULES];
 static ErrorMask test_error_mask = 0;
 static uint32_t bms_can_send_call_count = 0;
 static uint32_t lv_can_send_call_count = 0;
@@ -55,6 +66,10 @@ static uint8_t bms_can_last_len = 0;
 static uint32_t lv_can_last_id = 0;
 static uint8_t lv_can_last_data[8] = {0};
 static uint8_t lv_can_last_len = 0;
+static uint32_t bms_can_id_history[64] = {0};
+static size_t bms_can_id_history_count = 0;
+static uint32_t lv_can_id_history[64] = {0};
+static size_t lv_can_id_history_count = 0;
 
 void Test_Stubs_Reset(void)
 {
@@ -64,6 +79,7 @@ void Test_Stubs_Reset(void)
     mutex_new_result_count = 0;
     mutex_new_result_index = 0;
     mutex_new_call_count = 0;
+    test_event_flags = 0U;
     can_activate_notification_result = HAL_OK;
     can_activate_notification_call_count = 0;
     can_add_tx_result = HAL_OK;
@@ -72,6 +88,12 @@ void Test_Stubs_Reset(void)
     can_get_rx_dlc = 0;
     adc_start_result = HAL_OK;
     comp_start_result = HAL_OK;
+    adc_value_count = 0;
+    adc_value_index = 0;
+    gpio_read_value_count = 0;
+    gpio_read_value_index = 0;
+    gpio_write_call_count = 0;
+    last_gpio_write_state = GPIO_PIN_RESET;
     kernel_tick = 0;
     delay_hook = NULL;
     delay_call_count = 0;
@@ -82,6 +104,8 @@ void Test_Stubs_Reset(void)
     bms_can_last_len = 0;
     lv_can_last_id = 0;
     lv_can_last_len = 0;
+    bms_can_id_history_count = 0;
+    lv_can_id_history_count = 0;
     memset(bms_can_last_data, 0, sizeof(bms_can_last_data));
     memset(lv_can_last_data, 0, sizeof(lv_can_last_data));
     io_initialized = 0;
@@ -92,7 +116,7 @@ void Test_Stubs_Reset(void)
     test_error_mask = 0;
 
     for (size_t i = 0; i < NUM_ACC_MODULES; i++) {
-        memset(&test_acc_modules[i], 0, sizeof(Acc_Module));
+        memset(&test_acc_modules[i], 0, sizeof(Acc_Module_t));
         test_acc_modules[i].mutex = (osMutexId_t)0x1;
         acc[i] = &test_acc_modules[i];
     }
@@ -170,6 +194,26 @@ void Test_SetCompStartResult(HAL_StatusTypeDef result)
     comp_start_result = result;
 }
 
+void Test_SetAdcValues(const uint32_t *values, size_t count)
+{
+    size_t i = 0;
+    adc_value_count = (count > 64) ? 64 : count;
+    for (i = 0; i < adc_value_count; i++) {
+        adc_values[i] = values[i];
+    }
+    adc_value_index = 0;
+}
+
+void Test_SetGpioReadValues(const GPIO_PinState *values, size_t count)
+{
+    size_t i = 0;
+    gpio_read_value_count = (count > 16) ? 16 : count;
+    for (i = 0; i < gpio_read_value_count; i++) {
+        gpio_read_values[i] = values[i];
+    }
+    gpio_read_value_index = 0;
+}
+
 osMessageQueueId_t osMessageQueueNew(uint32_t msg_count, uint32_t msg_size, const void *attr)
 {
     (void)msg_count;
@@ -225,6 +269,42 @@ osStatus_t osMutexRelease(osMutexId_t mutex_id)
 {
     (void)mutex_id;
     return osOK;
+}
+
+osEventFlagsId_t osEventFlagsNew(const osEventFlagsAttr_t *attr)
+{
+    (void)attr;
+    test_event_flags = 0U;
+    return (osEventFlagsId_t)0x1;
+}
+
+uint32_t osEventFlagsSet(osEventFlagsId_t ef_id, uint32_t flags)
+{
+    (void)ef_id;
+    test_event_flags |= flags;
+    return test_event_flags;
+}
+
+uint32_t osEventFlagsClear(osEventFlagsId_t ef_id, uint32_t flags)
+{
+    (void)ef_id;
+    test_event_flags &= ~flags;
+    return test_event_flags;
+}
+
+uint32_t osEventFlagsGet(osEventFlagsId_t ef_id)
+{
+    (void)ef_id;
+    return test_event_flags;
+}
+
+uint32_t osEventFlagsWait(osEventFlagsId_t ef_id, uint32_t flags, uint32_t options, uint32_t timeout)
+{
+    (void)ef_id;
+    (void)flags;
+    (void)options;
+    (void)timeout;
+    return 0U;
 }
 
 void osDelay(uint32_t ticks)
@@ -306,6 +386,9 @@ HAL_StatusTypeDef HAL_ADC_PollForConversion(ADC_HandleTypeDef *hadc, uint32_t ti
 uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *hadc)
 {
     (void)hadc;
+    if (adc_value_index < adc_value_count) {
+        return adc_values[adc_value_index++];
+    }
     return 0;
 }
 
@@ -325,13 +408,17 @@ void HAL_GPIO_WritePin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, GPIO_PinState Pin
 {
     (void)GPIOx;
     (void)GPIO_Pin;
-    (void)PinState;
+    gpio_write_call_count++;
+    last_gpio_write_state = PinState;
 }
 
 GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
 {
     (void)GPIOx;
     (void)GPIO_Pin;
+    if (gpio_read_value_index < gpio_read_value_count) {
+        return gpio_read_values[gpio_read_value_index++];
+    }
     return GPIO_PIN_RESET;
 }
 
@@ -437,7 +524,7 @@ HAL_StatusTypeDef IO_InitCurrent(Current *c, const char *mutex_name)
     return HAL_OK;
 }
 
-uint8_t IO_GetDigitalIO(DigitalIO *dio)
+bool IO_GetDigitalIO(DigitalIO *dio)
 {
     return dio->value;
 }
@@ -452,14 +539,14 @@ float IO_GetTemp(Temp *t)
     return t->value;
 }
 
-uint32_t IO_GetCurrent(Current *c)
+int32_t IO_GetCurrent(Current *c)
 {
     return c->value;
 }
 
-void IO_SetDigitalIO(DigitalIO *dio, uint16_t value)
+void IO_SetDigitalIO(DigitalIO *dio, bool value)
 {
-    dio->value = (uint8_t)value;
+    dio->value = value;
     dio->last_updated = osKernelGetTickCount();
 }
 
@@ -475,7 +562,7 @@ void IO_SetTemp(Temp *t, float value)
     t->last_updated = osKernelGetTickCount();
 }
 
-void IO_SetCurrent(Current *c, uint32_t value)
+void IO_SetCurrent(Current *c, int32_t value)
 {
     c->value = value;
     c->last_updated = osKernelGetTickCount();
@@ -498,6 +585,9 @@ __attribute__((weak)) HAL_StatusTypeDef LV_CAN_SendMessage(uint32_t id, uint8_t 
     lv_can_send_call_count++;
     lv_can_last_id = id;
     lv_can_last_len = length;
+    if (lv_can_id_history_count < 64U) {
+        lv_can_id_history[lv_can_id_history_count++] = id;
+    }
     if (data != NULL) {
         uint8_t copy_len = (length > 8U) ? 8U : length;
         memcpy(lv_can_last_data, data, copy_len);
@@ -511,11 +601,24 @@ __attribute__((weak)) HAL_StatusTypeDef BMS_CAN_SendMessage(uint32_t id, uint8_t
     bms_can_send_call_count++;
     bms_can_last_id = id;
     bms_can_last_len = length;
+    if (bms_can_id_history_count < 64U) {
+        bms_can_id_history[bms_can_id_history_count++] = id;
+    }
     if (data != NULL) {
         uint8_t copy_len = (length > 8U) ? 8U : length;
         memcpy(bms_can_last_data, data, copy_len);
     }
     return HAL_OK;
+}
+
+__attribute__((weak)) bool BMS_CAN_HasError(void)
+{
+    return false;
+}
+
+__attribute__((weak)) bool LV_CAN_HasError(void)
+{
+    return false;
 }
 
 __attribute__((weak)) void State_GetState(State *state)
@@ -561,7 +664,7 @@ __attribute__((weak)) void State_GetErrorMask(ErrorMask *mask)
     }
 }
 
-__attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module *module, uint32_t *last_update)
+__attribute__((weak)) void Acc_GetHeartbeatLastUpdate(Acc_Module_t *module, uint32_t *last_update)
 {
     if ((module != NULL) && (last_update != NULL)) {
         *last_update = module->heartbeat_last_update;
@@ -614,6 +717,20 @@ uint8_t Test_GetLastLvCanDataByte(uint8_t index)
     return 0U;
 }
 
+uint32_t Test_GetLvCanSendCallCountForId(uint32_t id)
+{
+    uint32_t count = 0;
+    size_t i = 0;
+
+    for (i = 0; i < lv_can_id_history_count; i++) {
+        if (lv_can_id_history[i] == id) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
 uint32_t Test_GetDelayCallCount(void)
 {
     return delay_call_count;
@@ -622,4 +739,14 @@ uint32_t Test_GetDelayCallCount(void)
 uint32_t Test_GetLastDelayTicks(void)
 {
     return last_delay_ticks;
+}
+
+uint32_t Test_GetGpioWriteCallCount(void)
+{
+    return gpio_write_call_count;
+}
+
+GPIO_PinState Test_GetLastGpioWriteState(void)
+{
+    return last_gpio_write_state;
 }

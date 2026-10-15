@@ -25,6 +25,8 @@
 #include "bms_can_manager.h"
 #include "lv_can_manager.h"
 #include "io_manager.h"
+#include "acc_manager.h"
+#include "state_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,7 +66,7 @@ const osThreadAttr_t LED_Blink_attributes = {
   .cb_size = sizeof(LED_BlinkControlBlock),
   .stack_mem = &LED_BlinkBuffer[0],
   .stack_size = sizeof(LED_BlinkBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for LV_CANManagerTa */
 osThreadId_t LV_CANManagerTaHandle;
@@ -76,7 +78,7 @@ const osThreadAttr_t LV_CANManagerTa_attributes = {
   .cb_size = sizeof(LV_CANManagerTaskControlBlock),
   .stack_mem = &LV_CANManagerTaskBuffer[0],
   .stack_size = sizeof(LV_CANManagerTaskBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* Definitions for BMS_CAN_Manager */
 osThreadId_t BMS_CAN_ManagerHandle;
@@ -100,18 +102,6 @@ const osThreadAttr_t IO_Manager_attributes = {
   .cb_size = sizeof(IO_ManagerTaskControlBlock),
   .stack_mem = &IO_ManagerTaskBuffer[0],
   .stack_size = sizeof(IO_ManagerTaskBuffer),
-  .priority = (osPriority_t) osPriorityHigh,
-};
-/* Definitions for IO_PriorityMana */
-osThreadId_t IO_PriorityManaHandle;
-uint32_t IO_PriorityManaBuffer[ 128 ];
-osStaticThreadDef_t IO_PriorityManaControlBlock;
-const osThreadAttr_t IO_PriorityMana_attributes = {
-  .name = "IO_PriorityMana",
-  .cb_mem = &IO_PriorityManaControlBlock,
-  .cb_size = sizeof(IO_PriorityManaControlBlock),
-  .stack_mem = &IO_PriorityManaBuffer[0],
-  .stack_size = sizeof(IO_PriorityManaBuffer),
   .priority = (osPriority_t) osPriorityRealtime,
 };
 /* Definitions for State_Manager */
@@ -124,12 +114,31 @@ const osThreadAttr_t State_Manager_attributes = {
   .cb_size = sizeof(State_ManagerControlBlock),
   .stack_mem = &State_ManagerBuffer[0],
   .stack_size = sizeof(State_ManagerBuffer),
-  .priority = (osPriority_t) osPriorityRealtime,
+  .priority = (osPriority_t) osPriorityHigh,
 };
-/* Definitions for CAN */
-osMutexId_t CANHandle;
-const osMutexAttr_t CAN_attributes = {
-  .name = "CAN"
+/* Definitions for Acc_Manager */
+osThreadId_t Acc_ManagerHandle;
+uint32_t AccManagerBuffer[ 128 ];
+osStaticThreadDef_t AccManagerControlBlock;
+const osThreadAttr_t Acc_Manager_attributes = {
+  .name = "Acc_Manager",
+  .cb_mem = &AccManagerControlBlock,
+  .cb_size = sizeof(AccManagerControlBlock),
+  .stack_mem = &AccManagerBuffer[0],
+  .stack_size = sizeof(AccManagerBuffer),
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for SPI_IntCallback */
+osThreadId_t SPI_IntCallbackHandle;
+uint32_t SPI_IntCallbackBuffer[ 128 ];
+osStaticThreadDef_t SPI_IntCallbackControlBlock;
+const osThreadAttr_t SPI_IntCallback_attributes = {
+  .name = "SPI_IntCallback",
+  .cb_mem = &SPI_IntCallbackControlBlock,
+  .cb_size = sizeof(SPI_IntCallbackControlBlock),
+  .stack_mem = &SPI_IntCallbackBuffer[0],
+  .stack_size = sizeof(SPI_IntCallbackBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
 
@@ -147,8 +156,9 @@ void LED_BlinkTask(void *argument);
 extern void LV_CAN_ManagerTask(void *argument);
 extern void BMS_CAN_ManagerTask(void *argument);
 extern void IO_ManagerTask(void *argument);
-extern void IO_PriorityManagerTask(void *argument);
 extern void State_ManagerTask(void *argument);
+extern void Acc_ManagerTask(void *argument);
+extern void SPI_IntCallbackTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -168,6 +178,14 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
+  // When coming from bootloader, disable all interrupts first
+  __disable_irq();
+
+  // Disable SysTick (bootloader might have enabled it)
+  SysTick->CTRL = 0;
+  SysTick->LOAD = 0;
+  SysTick->VAL = 0;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -184,8 +202,7 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
-  // Updating vector table for application when using CAN bootloader
-  SCB->VTOR = 0x08008000U;  /* APPLICATION_ADDRESS */
+  // Vector table relocation is handled in SystemInit() using VECT_TAB_OFFSET.
   
   /* USER CODE END SysInit */
 
@@ -202,9 +219,6 @@ int main(void)
 
   /* Init scheduler */
   osKernelInitialize();
-  /* Create the mutex(es) */
-  /* creation of CAN */
-  CANHandle = osMutexNew(&CAN_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -228,7 +242,15 @@ int main(void)
     Error_Handler();
   }
 
+  if (Acc_Manager_Init() != HAL_OK) {
+    Error_Handler();
+  }
+
   if (IO_Manager_Init() != HAL_OK) {
+    Error_Handler();
+  }
+
+  if (State_Manager_Init() != HAL_OK) {
     Error_Handler();
   }
 
@@ -247,11 +269,14 @@ int main(void)
   /* creation of IO_Manager */
   IO_ManagerHandle = osThreadNew(IO_ManagerTask, NULL, &IO_Manager_attributes);
 
-  /* creation of IO_PriorityMana */
-  IO_PriorityManaHandle = osThreadNew(IO_PriorityManagerTask, NULL, &IO_PriorityMana_attributes);
-
   /* creation of State_Manager */
   State_ManagerHandle = osThreadNew(State_ManagerTask, NULL, &State_Manager_attributes);
+
+  /* creation of Acc_Manager */
+  Acc_ManagerHandle = osThreadNew(Acc_ManagerTask, NULL, &Acc_Manager_attributes);
+
+  /* creation of SPI_IntCallback */
+  SPI_IntCallbackHandle = osThreadNew(SPI_IntCallbackTask, NULL, &SPI_IntCallback_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -439,6 +464,11 @@ static void MX_CAN1_Init(void)
     Error_Handler();
   }
 
+  // Enable robust CAN fault handling (preserved across CubeMX regeneration)
+  // ABOM: automatic recovery from Bus-Off per CAN specification
+  // NART: clear to enable automatic retransmission for transient failures
+  SET_BIT(hcan1.Instance->MCR, CAN_MCR_ABOM);
+  CLEAR_BIT(hcan1.Instance->MCR, CAN_MCR_NART);
   /* USER CODE END CAN1_Init 2 */
 
 }
@@ -459,8 +489,8 @@ static void MX_COMP2_Init(void)
 
   /* USER CODE END COMP2_Init 1 */
   hcomp2.Instance = COMP2;
-  hcomp2.Init.InvertingInput = COMP_INPUT_MINUS_IO2;
-  hcomp2.Init.NonInvertingInput = COMP_INPUT_PLUS_IO1;
+  hcomp2.Init.InvertingInput = COMP_INPUT_MINUS_IO3;
+  hcomp2.Init.NonInvertingInput = COMP_INPUT_PLUS_IO3;
   hcomp2.Init.OutputPol = COMP_OUTPUTPOL_NONINVERTED;
   hcomp2.Init.Hysteresis = COMP_HYSTERESIS_HIGH;
   hcomp2.Init.BlankingSrce = COMP_BLANKINGSRC_NONE;
@@ -530,7 +560,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -566,7 +596,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LD3_Pin|BMS_Fault_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LD3_Pin|PL_SIGNAL_Pin|BMS_Fault_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : SPI1_CS_Pin */
   GPIO_InitStruct.Pin = SPI1_CS_Pin;
@@ -574,18 +604,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : EMeter_Sig_Pin */
-  GPIO_InitStruct.Pin = EMeter_Sig_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(EMeter_Sig_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : LV_CAN_INT_Pin */
-  GPIO_InitStruct.Pin = LV_CAN_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(LV_CAN_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA8 */
   GPIO_InitStruct.Pin = GPIO_PIN_8;
@@ -601,16 +619,28 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD3_Pin BMS_Fault_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin|BMS_Fault_Pin;
+  /*Configure GPIO pins : LD3_Pin PL_SIGNAL_Pin BMS_Fault_Pin */
+  GPIO_InitStruct.Pin = LD3_Pin|PL_SIGNAL_Pin|BMS_Fault_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : LV_CAN_INT_Pin */
+  GPIO_InitStruct.Pin = LV_CAN_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(LV_CAN_INT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : EMeter_Therm_Pin */
+  GPIO_InitStruct.Pin = EMeter_Therm_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(EMeter_Therm_GPIO_Port, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -633,6 +663,8 @@ void LED_BlinkTask(void *argument)
   /* USER CODE BEGIN 5 */
   for(;;)
   {
+    HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+    osDelay(500);
     HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
     osDelay(500);
   }
@@ -683,14 +715,25 @@ void Error_Handler(void)
   TxHeader.StdId = 0;
   TxHeader.RTR = CAN_RTR_DATA;
   TxHeader.IDE = CAN_ID_EXT;
-  TxHeader.DLC = 0;
+  TxHeader.DLC = 4;
   TxHeader.TransmitGlobalTime = DISABLE;
+
+  data[0] = bms_can_initialized;
+  data[1] = lv_can_initialized;
+  data[2] = acc_initialized;
+  data[3] = io_initialized;
   
   uCAN_MSG spi_message = {0};
 
   spi_message.frame.idType = dEXTENDED_CAN_MSG_ID_2_0B;
   spi_message.frame.id = CAN_ID_ERRORED_PANIC;
-  spi_message.frame.dlc = 0;
+  spi_message.frame.dlc = 4;
+
+  spi_message.frame.data0 = bms_can_initialized;
+  spi_message.frame.data1 = lv_can_initialized;
+  spi_message.frame.data2 = acc_initialized;
+  spi_message.frame.data3 = io_initialized;
+
 
   while (1)
   {
@@ -706,7 +749,7 @@ void Error_Handler(void)
     }
 
     // TODO: delay that doesn't use HAL_DELAY?
-    for (int i = 0; i < 1000; i++) {};
+    for (int i = 0; i < 10000; i++) {};
   }
   /* USER CODE END Error_Handler_Debug */
 }

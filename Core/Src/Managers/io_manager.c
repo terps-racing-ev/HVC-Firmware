@@ -18,45 +18,70 @@
 /* USER CODE END Header */
 
 #include "io_manager.h"
+#include "acc.h"
+#include "vsense.h"
+#include "soc.h"
 #include "cmsis_os.h"
 #include "stm32l4xx_hal.h"
 
 uint8_t io_initialized = 0;
-
-// External ADC handle (from main.c)
-extern ADC_HandleTypeDef hadc1;
-
-// IO structs
-DigitalIO sdc = {0};
-DigitalIO imd = {0};
-DigitalIO bms_fault = {0};
-AnalogIO cs_low_raw = {0};
-AnalogIO cs_high_raw = {0};
-AnalogIO therm = {0};
-Temp ref_temp = {0};
-Current cs_low = {0};
-Current cs_high = {0};
+static bool batt_floating = true;
+static bool curr_sense_floating = false;
 
 // Private function prototypes
 static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel);
 static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out);
+static uint32_t _IO_CalculateVREF(void);
+static void _IO_LowPriority(void);
+static void _IO_HighPriority(void);
+static void _IO_HandleCompEvent(void);
+static void _IO_UpdateFloatingInputFlags(
+    uint16_t cs_low_raw_val,
+    bool cs_low_sample_valid,
+    uint16_t cs_high_raw_val,
+    bool cs_high_sample_valid,
+    uint32_t batt_voltage_mV,
+    bool batt_sample_valid
+);
 static void _IO_PackIOSummary(
-    uint8_t *data, 
+    uint8_t *data,
     uint8_t *length,
-    uint8_t sdc_val,
-    uint8_t imd_val,
-    uint16_t therm_val,
-    uint8_t bms_fault_val,
-    uint16_t cs_low_val,
-    uint16_t cs_high_val
+    bool sdc_val,
+    bool imd_val,
+    float temp_val,
+    bool bms_fault_val,
+    int16_t pack_power_x100,
+    int16_t peak_power_x100
+);
+static int16_t _IO_UpdatePeakPower(int16_t current_power);
+static int32_t _IO_SelectPackCurrent(int32_t cs_low_val, int32_t cs_high_val);
+static int16_t _IO_SatI16(int64_t value);
+static void _IO_PackCurrentSenseMessage(
+    uint8_t *data,
+    uint8_t *length,
+    int32_t cs_low_val,
+    int32_t cs_high_val,
+    int32_t pack_current_val
+);
+static void _IO_PackVSenseMessage(
+    uint8_t *data,
+    uint8_t *length,
+    uint32_t batt_val,
+    uint32_t inv_val
 );
 
 HAL_StatusTypeDef IO_Manager_Init(void){
-    // Start hardware
-    if (HAL_ADC_Start(&hadc1) != HAL_OK) {
+
+    // Calibrate ADC
+    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK)
+    {
         return HAL_ERROR;
     }
 
+    // Delay to fix random ADC offsets
+    for (int i = 0; i < 1000000; i++) {};
+
+    // Start comparator
     if (HAL_COMP_Start(&hcomp2) != HAL_OK) {
         return HAL_ERROR;
     }
@@ -68,9 +93,16 @@ HAL_StatusTypeDef IO_Manager_Init(void){
     if (IO_InitAnalogIO(&cs_low_raw, "CS_Low_Raw_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitAnalogIO(&cs_high_raw, "CS_High_Raw_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitAnalogIO(&therm, "Therm_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitAnalogIO(&batt_raw, "Batt_Raw_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitAnalogIO(&inv_raw, "Inv_Raw_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitTemp(&ref_temp, "Ref_Temp_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_low, "CS_Low_Mutex") != HAL_OK) return HAL_ERROR;
     if (IO_InitCurrent(&cs_high, "CS_High_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitCurrent(&pack_curr, "Pack_Curr_Mutex") != HAL_OK) return HAL_ERROR;
+    // Override the default current window with the dedicated 100ms pack-current average
+    MovingAverage_Init(&pack_curr.ma, IO_PACK_CURRENT_MA_WINDOW);
+    if (IO_InitVSense(&batt, "Batt_Mutex") != HAL_OK) return HAL_ERROR;
+    if (IO_InitVSense(&inv, "Inv_Mutex") != HAL_OK) return HAL_ERROR;
 
     io_initialized = 1;
 
@@ -78,91 +110,274 @@ HAL_StatusTypeDef IO_Manager_Init(void){
 }
 
 /**
- * @brief Main IO manager task
+ * @brief Combined IO manager task. Runs at the priority IO rate and
+ *        schedules the slower summary work from the same thread.
  * @param argument: Not used
  * @retval None
  */
 void IO_ManagerTask(void *argument){
-    uint8_t io_summary[8];
-    uint8_t io_summary_len;
-    float temp;
-    GPIO_PinState sdc_raw;
-    GPIO_PinState imd_raw;
-    uint16_t therm_raw;
+    uint32_t regular_cycle_divider = 0U;
+    const uint32_t regular_cycle_period =
+        (IO_UPDATE_FREQ_MS + IO_PRIORITY_UPDATE_FREQ_MS - 1U) / IO_PRIORITY_UPDATE_FREQ_MS;
+
+    (void)argument;
 
     for (;;) {
-        // Read SDC + IMD
-        sdc_raw = HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin);
-        imd_raw = HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin);
-        IO_SetDigitalIO(&sdc, sdc_raw);
-        IO_SetDigitalIO(&imd, imd_raw);
-        
-        // Read Therm
-        // TODO: handle HAL_ERROR return
-        _IO_ReadADCChannel(ADC_CHANNEL_8, &therm_raw);
-        IO_SetAnalogIO(&therm, therm_raw);
+        _IO_HighPriority();
 
-        // Calculate and update temp value
-        temp = Therm_CalculateTemperature(therm_raw);
-        IO_SetTemp(&ref_temp, temp);
+        // Handle comparator logic if triggered
+        _IO_HandleCompEvent();
 
-        // TODO: Emeter temps?
+        if (regular_cycle_divider == 0U) {
+            _IO_LowPriority();
+        }
 
-        // Send summary message
-        _IO_PackIOSummary(
-            io_summary, 
-            &io_summary_len,
-            sdc_raw,
-            imd_raw,
-            therm_raw,
-            IO_GetDigitalIO(&bms_fault),    // These values are set in the priority task
-            IO_GetAnalogIO(&cs_low_raw),
-            IO_GetAnalogIO(&cs_high_raw)
-        );
-        LV_CAN_SendMessage(
-            CAN_ID_IO_SUMMARY,
-            io_summary,
-            io_summary_len,
-            CAN_PRIORITY_NORMAL
-        );
-
-        osDelay(IO_UPDATE_FREQ_MS);
-    }
-}
-
-/**
-  * @brief  Main IO manager task (for priority io values). Runs at faster rate.
-  * @param  argument: Not used
-  * @retval None
-  */
-void IO_PriorityManagerTask(void *argument) {
-    uint16_t cs_low_raw_val;
-    uint16_t cs_high_raw_val;
-    uint32_t cs_low_val;
-    uint32_t cs_high_val;
-    uint8_t fault;
-
-    for (;;) {
-        // Write BMS Fault (1 is good)
-        fault = IO_GetDigitalIO(&bms_fault);
-        if (fault) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
-        else HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
-
-        // Read CS_LOW (Channel 5 - PA0)
-        _IO_ReadADCChannel(ADC_CHANNEL_5, &cs_low_raw_val);
-        IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
-        // Read CS_HIGH (Channel 6 - PA1)
-        _IO_ReadADCChannel(ADC_CHANNEL_6, &cs_high_raw_val);
-        IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
-
-        // Set cs values
-        cs_low_val = Curr_CalculateCurrentSense(cs_low_raw_val);
-        IO_SetCurrent(&cs_low, cs_low_val);
-        cs_high_val = Curr_CalculateCurrentSense(cs_high_raw_val);
-        IO_SetCurrent(&cs_high, cs_high_val);
+        regular_cycle_divider++;
+        if (regular_cycle_divider >= regular_cycle_period) {
+            regular_cycle_divider = 0U;
+        }
 
         osDelay(IO_PRIORITY_UPDATE_FREQ_MS);
     }
+}
+
+typedef enum {
+    PL_SIGNAL_REASON_NORMAL_OPEN = 0,
+    PL_SIGNAL_REASON_NORMAL_CLOSED = 1,
+    PL_SIGNAL_REASON_BMS_ERRORED = 2,
+    PL_SIGNAL_REASON_BATT_FLOATING = 3,
+    PL_SIGNAL_REASON_CHARGING = 4
+} PL_Signal_Reason;
+
+#define COMP_DEBOUNCE_TICKS 5
+
+static void _IO_HandleCompEvent(void)
+{
+    static PL_Signal_Reason prev_reason = (PL_Signal_Reason)-1;
+    PL_Signal_Reason curr_reason;
+    static uint32_t debounced_comp_state = COMP_OUTPUT_LEVEL_LOW;
+    static uint8_t comp_debounce_counter = 0;
+    
+    uint32_t comp_state = HAL_COMP_GetOutputLevel(&hcomp2);
+    State bms_state; State_GetState(&bms_state);
+    FloatingInputMask floating_inputs = 0U;
+
+    // Debounce comparator output
+    if (comp_state != debounced_comp_state) {
+        comp_debounce_counter++;
+        if (comp_debounce_counter >= COMP_DEBOUNCE_TICKS) {
+            debounced_comp_state = comp_state;
+            comp_debounce_counter = 0;
+        }
+    } else {
+        comp_debounce_counter = 0;
+    }
+
+    if (floating_input_flag != NULL) {
+        floating_inputs = (FloatingInputMask)osEventFlagsGet(floating_input_flag);
+    }
+
+    bool batt_input_floating = ((floating_inputs & BMS_FLOATING_INPUT_BATT) != 0U);
+
+    // Conditions to check before allowing AIRTOP to close
+    if (bms_state == ERRORED) {
+        HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+        curr_reason = PL_SIGNAL_REASON_BMS_ERRORED;
+    } else if (batt_input_floating) {
+        HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+        curr_reason = PL_SIGNAL_REASON_BATT_FLOATING;
+    } else if (bms_state == CHARGING) { // If charging ignore normal comp signal
+        HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_SET);
+        curr_reason = PL_SIGNAL_REASON_CHARGING;
+    } else { // Normal operation
+        if (debounced_comp_state == COMP_OUTPUT_LEVEL_LOW) {
+            HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_RESET);
+            curr_reason = PL_SIGNAL_REASON_NORMAL_OPEN;
+        } else {
+            HAL_GPIO_WritePin(PL_SIGNAL_GPIO_Port, PL_SIGNAL_Pin, GPIO_PIN_SET);
+            curr_reason = PL_SIGNAL_REASON_NORMAL_CLOSED;
+        }
+    }
+
+    if (curr_reason != prev_reason) {
+        uint8_t can_data[1] = { (uint8_t)curr_reason };
+        HVC_CAN_SendMessage(CAN_ID_PL_SIGNAL, can_data, 1, CAN_PRIORITY_NORMAL);
+        
+        prev_reason = curr_reason;
+    }
+}
+
+static void _IO_LowPriority(void)
+{
+    uint8_t can_data[8];
+    uint8_t can_data_len;
+    float temp;
+    bool sdc_raw;
+    bool imd_raw;
+    uint16_t therm_raw = IO_GetAnalogIO(&therm);
+
+    // Read SDC + IMD
+    sdc_raw = (HAL_GPIO_ReadPin(SDC_GPIO_Port, SDC_Pin) == GPIO_PIN_SET);
+    imd_raw = (HAL_GPIO_ReadPin(IMD_GPIO_Port, IMD_Pin) == GPIO_PIN_SET);
+    IO_SetDigitalIO(&sdc, sdc_raw);
+    IO_SetDigitalIO(&imd, imd_raw);
+
+    // Read Therm
+    if (_IO_ReadADCChannel(ADC_CHANNEL_15, &therm_raw) == HAL_OK) {
+        IO_SetAnalogIO(&therm, therm_raw);
+    }
+
+    // Calculate and update temp value
+    temp = Therm_CalculateTemperature(therm_raw);
+    IO_SetTemp(&ref_temp, temp);
+
+    // TODO: Emeter temps?
+
+    // Read current and voltage once; reuse across all messages.
+    // pack_curr is the channel-corrected, 100ms-averaged pack current (mA).
+    int32_t cs_low_val = IO_GetCurrent(&cs_low);
+    int32_t cs_high_val = IO_GetCurrent(&cs_high);
+    int32_t pack_current_mA = IO_GetCurrent(&pack_curr);
+    uint32_t batt_mv = IO_GetVSense(&batt);
+    uint32_t inv_mv = IO_GetVSense(&inv);
+
+    // Pack power from inverter voltage and averaged pack current.
+    // 0.01 kW/LSB: (V_mV/1e3 * I_mA/1e3) W / 1e3 kW * 100 = V_mV * I_mA / 1e7
+    int64_t power_x100 = ((int64_t)inv_mv * (int64_t)pack_current_mA) / 10000000LL;
+    int16_t pack_power = _IO_SatI16(power_x100);
+    int16_t peak_power = _IO_UpdatePeakPower(pack_power);
+
+    // Send summary message
+    _IO_PackIOSummary(
+        can_data,
+        &can_data_len,
+        sdc_raw,
+        imd_raw,
+        temp,
+        !IO_GetDigitalIO(&bms_fault),
+        pack_power,
+        peak_power
+    );
+    HVC_CAN_SendMessage(
+        CAN_ID_IO_SUMMARY,
+        can_data,
+        can_data_len,
+        CAN_PRIORITY_NORMAL
+    );
+
+    _IO_PackCurrentSenseMessage(
+        can_data,
+        &can_data_len,
+        cs_low_val,
+        cs_high_val,
+        pack_current_mA
+    );
+    HVC_CAN_SendMessage(
+        CAN_ID_IO_CURRENT,
+        can_data,
+        can_data_len,
+        CAN_PRIORITY_NORMAL
+    );
+
+    _IO_PackVSenseMessage(
+        can_data,
+        &can_data_len,
+        batt_mv,
+        inv_mv
+    );
+    HVC_CAN_SendMessage(
+        CAN_ID_IO_VSENSE,
+        can_data,
+        can_data_len,
+        CAN_PRIORITY_NORMAL
+    );
+}
+
+static void _IO_HighPriority(void)
+{
+    uint16_t cs_low_raw_val = IO_GetAnalogIO(&cs_low_raw);
+    uint16_t cs_high_raw_val = IO_GetAnalogIO(&cs_high_raw);
+    uint16_t batt_raw_val = IO_GetAnalogIO(&batt_raw);
+    uint16_t inv_raw_val = IO_GetAnalogIO(&inv_raw);
+    int32_t cs_low_val, cs_high_val, cs_low_filt_val, cs_high_filt_val, timestamp;
+    uint32_t vref;
+    uint32_t batt_voltage;
+    uint32_t inv_voltage;
+    uint32_t batt_voltage_filt;
+    uint32_t inv_voltage_filt;
+    bool fault;
+    bool batt_sample_valid = false;
+    bool cs_low_sample_valid = false;
+    bool cs_high_sample_valid = false;
+
+    // Write BMS Fault (1 is good)
+    fault = IO_GetDigitalIO(&bms_fault);
+    if (fault) HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_SET);
+    else HAL_GPIO_WritePin(BMS_Fault_GPIO_Port, BMS_Fault_Pin, GPIO_PIN_RESET);
+    
+    // Calculate ADC reference voltage
+    vref = _IO_CalculateVREF();
+
+    // Keep the previous sample on conversion failure so bad startup reads
+    // cannot inject uninitialized stack values into filters.
+    if (_IO_ReadADCChannel(ADC_CHANNEL_BATT, &batt_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&batt_raw, batt_raw_val);
+        batt_sample_valid = true;
+    }
+    if (_IO_ReadADCChannel(ADC_CHANNEL_INV, &inv_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&inv_raw, inv_raw_val);
+    }
+    if (_IO_ReadADCChannel(ADC_CHANNEL_CS_LC, &cs_low_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&cs_low_raw, cs_low_raw_val);
+        cs_low_sample_valid = true;
+    }
+    if (_IO_ReadADCChannel(ADC_CHANNEL_CS_HC, &cs_high_raw_val) == HAL_OK) {
+        IO_SetAnalogIO(&cs_high_raw, cs_high_raw_val);
+        cs_high_sample_valid = true;
+    }
+
+    // Calculate batt value
+    // TODO: Use vref here also
+    // Scale 
+    batt_voltage = (uint32_t)(VSense_CalculateVoltage(batt_raw_val) * INVERSE_PRECHARGE_FACTOR);
+    inv_voltage = VSense_CalculateVoltage(inv_raw_val);
+    // Calculate cs values
+    cs_low_val = Curr_CalculateCurrentSenseLow(cs_low_raw_val, vref);
+    cs_high_val = Curr_CalculateCurrentSenseHigh(cs_high_raw_val, vref);
+
+    // Update moving average
+    cs_low_filt_val = MovingAverage_Update(&cs_low.ma, cs_low_val);
+    cs_high_filt_val = MovingAverage_Update(&cs_high.ma, cs_high_val);
+    batt_voltage_filt = MovingAverage_Update(&batt.ma, batt_voltage);
+    inv_voltage_filt = MovingAverage_Update(&inv.ma, inv_voltage);
+
+    _IO_UpdateFloatingInputFlags(
+        cs_low_raw_val,
+        cs_low_sample_valid,
+        cs_high_raw_val,
+        cs_high_sample_valid,
+        batt_voltage,
+        batt_sample_valid
+    );
+
+    if (curr_sense_floating) {
+        cs_low_filt_val = 0;
+        cs_high_filt_val = 0;
+    }
+
+    // Channel-correct then apply the dedicated 100ms pack-current rolling average.
+    int32_t pack_sel = _IO_SelectPackCurrent(cs_low_filt_val, cs_high_filt_val);
+    int32_t pack_filt_val = MovingAverage_Update(&pack_curr.ma, pack_sel);
+
+    // Set cs values
+    IO_SetCurrent(&cs_low, cs_low_filt_val);
+    IO_SetCurrent(&cs_high, cs_high_filt_val);
+    IO_SetCurrent(&pack_curr, pack_filt_val);
+    IO_SetVSense(&batt, batt_voltage_filt);
+    IO_SetVSense(&inv, inv_voltage_filt);
+
+    timestamp = osKernelGetTickCount();
+    (void)Acc_CurrSenseQueue_Push(cs_low_filt_val, cs_high_filt_val, timestamp, 0U);
 }
 
 /**
@@ -176,7 +391,7 @@ static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel)
     
     sConfig.Channel = channel;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5; // Longer cycle time = higher impedance
+    sConfig.SamplingTime = ADC_SAMPLE_TIME; // Longer cycle time = higher impedance
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -190,6 +405,12 @@ static HAL_StatusTypeDef _IO_ConfigADCChannel(uint32_t channel)
  */
 static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
 {   
+    uint32_t adc_value;
+
+    if (out == NULL) {
+        return HAL_ERROR;
+    }
+
     if (_IO_ConfigADCChannel(channel) != HAL_OK) {
         return HAL_ERROR;
     }
@@ -199,23 +420,144 @@ static HAL_StatusTypeDef _IO_ReadADCChannel(uint32_t channel, uint16_t *out)
     }
     
     if (HAL_ADC_PollForConversion(&hadc1, 100) != HAL_OK) {
+        (void)HAL_ADC_Stop(&hadc1);
         return HAL_ERROR;
     }
-    
-    *out = HAL_ADC_GetValue(&hadc1);
+
+    adc_value = HAL_ADC_GetValue(&hadc1);
+
+    if (HAL_ADC_Stop(&hadc1) != HAL_OK) {
+        return HAL_ERROR;
+    }
+
+    *out = (uint16_t)adc_value;
     return HAL_OK;
 }
 
+/**
+  * @brief  Calculate ADC reference voltage
+  * @retval Reference voltage in mV
+  */
+static uint32_t _IO_CalculateVREF(void)
+{
+    uint16_t vref_adc_value = 0U;
+    static uint32_t vref_voltage = 3300U;
+
+    if (_IO_ReadADCChannel(ADC_CHANNEL_VREFINT, &vref_adc_value) == HAL_OK) {
+        uint32_t measured_vref = __HAL_ADC_CALC_VREFANALOG_VOLTAGE(vref_adc_value, ADC_RESOLUTION_12B);
+
+        // Reject implausible Vref readings and keep last-known-good value.
+        if ((measured_vref >= 2800U) && (measured_vref <= 3600U)) {
+            vref_voltage = measured_vref;
+        }
+    }
+
+    return vref_voltage;
+
+}
+
+static void _IO_UpdateFloatingInputFlags(
+    uint16_t cs_low_raw_val,
+    bool cs_low_sample_valid,
+    uint16_t cs_high_raw_val,
+    bool cs_high_sample_valid,
+    uint32_t batt_voltage_mV,
+    bool batt_sample_valid
+)
+{
+    if (batt_sample_valid) {
+        if (batt_floating && batt_voltage_mV >= IO_MAX_BATT_FLOATING_VOLTAGE_MV) {
+            batt_floating = false;
+        } else if (!batt_floating && batt_voltage_mV <= IO_MIN_BATT_FLOATING_VOLTAGE_MV) {
+            batt_floating = true;
+        }
+    }
+
+    if (cs_low_sample_valid && cs_high_sample_valid) {
+        bool cs_low_at_rail =
+            (cs_low_raw_val <= IO_MIN_CURR_FLOATING_ADC) ||
+            (cs_low_raw_val >= IO_MAX_CURR_FLOATING_ADC);
+        bool cs_high_at_rail =
+            (cs_high_raw_val <= IO_MIN_CURR_FLOATING_ADC) ||
+            (cs_high_raw_val >= IO_MAX_CURR_FLOATING_ADC);
+
+        curr_sense_floating = cs_low_at_rail || cs_high_at_rail;
+    }
+
+    if (floating_input_flag != NULL) {
+        if (batt_floating) {
+            (void)osEventFlagsSet(floating_input_flag, BMS_FLOATING_INPUT_BATT);
+        } else {
+            (void)osEventFlagsClear(floating_input_flag, BMS_FLOATING_INPUT_BATT);
+        }
+
+        if (curr_sense_floating) {
+            (void)osEventFlagsSet(floating_input_flag, BMS_FLOATING_INPUT_CURR_SENSE);
+        } else {
+            (void)osEventFlagsClear(floating_input_flag, BMS_FLOATING_INPUT_CURR_SENSE);
+        }
+    }
+}
+
+static int16_t _IO_UpdatePeakPower(int16_t current_power)
+{
+    static int16_t history[IO_PACK_POWER_HIST_LEN];
+    static uint16_t head = 0U;
+    static bool full = false;
+
+    history[head] = current_power;
+    head++;
+    if (head >= IO_PACK_POWER_HIST_LEN) {
+        head = 0U;
+        full = true;
+    }
+
+    uint16_t count = full ? (uint16_t)IO_PACK_POWER_HIST_LEN : head;
+    int16_t peak = history[0];
+    int16_t abs_peak = (peak >= 0) ? peak : (int16_t)(-peak);
+    for (uint16_t i = 1U; i < count; i++) {
+        int16_t abs_i = (history[i] >= 0) ? history[i] : (int16_t)(-history[i]);
+        if (abs_i > abs_peak) {
+            abs_peak = abs_i;
+            peak = history[i];
+        }
+    }
+    return peak;
+}
+
+/**
+ * @brief Channel-correct the pack current. Mirrors the SOC module: use the high
+ *        channel once |low channel| reaches the switch point (offset early to
+ *        stay within the low channel's accurate range), otherwise the low channel.
+ */
+static int32_t _IO_SelectPackCurrent(int32_t cs_low_val, int32_t cs_high_val)
+{
+    int32_t abs_low = (cs_low_val < 0) ? -cs_low_val : cs_low_val;
+    int32_t threshold = SOC_HIGH_CHANNEL_SWITCH_CURRENT_MA - SOC_HIGH_CHANNEL_SWITCH_OFFSET_MA;
+    return (abs_low >= threshold) ? cs_high_val : cs_low_val;
+}
+
+/**
+ * @brief Saturate a 64-bit value into the int16_t range.
+ */
+static int16_t _IO_SatI16(int64_t value)
+{
+    if (value > INT16_MAX) { return INT16_MAX; }
+    if (value < INT16_MIN) { return INT16_MIN; }
+    return (int16_t)value;
+}
+
 static void _IO_PackIOSummary(
-    uint8_t *data, 
+    uint8_t *data,
     uint8_t *length,
-    uint8_t sdc_val,
-    uint8_t imd_val,
-    uint16_t therm_val,
-    uint8_t bms_fault_val,
-    uint16_t cs_low_val,
-    uint16_t cs_high_val
+    bool sdc_val,
+    bool imd_val,
+    float temp_val,
+    bool bms_fault_val,
+    int16_t pack_power_x100,
+    int16_t peak_power_x100
 ){
+    int16_t temp_c_x100;
 
     if ((data == NULL) || (length == NULL)) {
         return;
@@ -241,16 +583,63 @@ static void _IO_PackIOSummary(
     // 3) bms_fault (bit 2)
     data[0] |= (uint8_t)((bms_fault_val & 0x01U) << 2U);
 
-    // 4) cs_low (little-endian uint16_t)
-    data[1] = (uint8_t)(cs_low_val & 0xFFU);
-    data[2] = (uint8_t)((cs_low_val >> 8U) & 0xFFU);
+    // 4) pack power (bits 8-23, little-endian int16_t, 0.01 kW/LSB)
+    data[1] = (uint8_t)((uint16_t)pack_power_x100 & 0xFFU);
+    data[2] = (uint8_t)(((uint16_t)pack_power_x100 >> 8U) & 0xFFU);
 
-    // 5) cs_high (little-endian uint16_t)
-    data[3] = (uint8_t)(cs_high_val & 0xFFU);
-    data[4] = (uint8_t)((cs_high_val >> 8U) & 0xFFU);
+    // 5) 30s peak pack power (bits 24-39, little-endian int16_t, 0.01 kW/LSB)
+    data[3] = (uint8_t)((uint16_t)peak_power_x100 & 0xFFU);
+    data[4] = (uint8_t)(((uint16_t)peak_power_x100 >> 8U) & 0xFFU);
 
-    // 6) therm (little-endian uint16_t)
-    data[5] = (uint8_t)(therm_val & 0xFFU);
-    data[6] = (uint8_t)((therm_val >> 8U) & 0xFFU);
+    // 6) temp (bits 40-55, little-endian int16_t, degrees C x100)
+    temp_c_x100 = (int16_t)(temp_val * 100.0f);
+    data[5] = (uint8_t)(temp_c_x100 & 0xFF);
+    data[6] = (uint8_t)(((uint16_t)temp_c_x100 >> 8U) & 0xFFU);
+}
+
+static void _IO_PackCurrentSenseMessage(
+    uint8_t *data,
+    uint8_t *length,
+    int32_t cs_low_val,
+    int32_t cs_high_val,
+    int32_t pack_current_val
+){
+    if ((data == NULL) || (length == NULL)) {
+        return;
+    }
+
+    // Each signal is int16_t at 0.01 A/LSB (10 mA/LSB), so raw = mA / 10.
+    uint16_t cs_low_u  = (uint16_t)_IO_SatI16((int64_t)cs_low_val / 10);
+    uint16_t cs_high_u = (uint16_t)_IO_SatI16((int64_t)cs_high_val / 10);
+    uint16_t pack_u    = (uint16_t)_IO_SatI16((int64_t)pack_current_val / 10);
+
+    data[0] = (uint8_t)(cs_low_u & 0xFFU);
+    data[1] = (uint8_t)((cs_low_u >> 8U) & 0xFFU);
+    data[2] = (uint8_t)(cs_high_u & 0xFFU);
+    data[3] = (uint8_t)((cs_high_u >> 8U) & 0xFFU);
+    data[4] = (uint8_t)(pack_u & 0xFFU);
+    data[5] = (uint8_t)((pack_u >> 8U) & 0xFFU);
+    *length = 6U;
+}
+
+static void _IO_PackVSenseMessage(
+    uint8_t *data,
+    uint8_t *length,
+    uint32_t batt_val,
+    uint32_t inv_val
+){
+    if ((data == NULL) || (length == NULL)) {
+        return;
+    }
+
+    data[0] = (uint8_t)(batt_val & 0xFFU);
+    data[1] = (uint8_t)((batt_val >> 8U) & 0xFFU);
+    data[2] = (uint8_t)((batt_val >> 16U) & 0xFFU);
+    data[3] = (uint8_t)((batt_val >> 24U) & 0xFFU);
+    data[4] = (uint8_t)(inv_val & 0xFFU);
+    data[5] = (uint8_t)((inv_val >> 8U) & 0xFFU);
+    data[6] = (uint8_t)((inv_val >> 16U) & 0xFFU);
+    data[7] = (uint8_t)((inv_val >> 24U) & 0xFFU);
+    *length = 8U;
 }
 
